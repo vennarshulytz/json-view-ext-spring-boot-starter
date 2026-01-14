@@ -4,9 +4,6 @@ import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-public class JsonViewExtSpringBootStarterApplicationTests {
-
-    @Test
-    public void contextLoads() {}
+public class JsonViewExtTests {
 
 }

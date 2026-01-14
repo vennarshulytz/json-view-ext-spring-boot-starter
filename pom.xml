@@ -14,12 +14,25 @@
     <name>json-view-ext-spring-boot-starter</name>
     <description>json-view-ext-spring-boot-starter</description>
     <url/>
+
+
+    <!-- ========== License ========== -->
     <licenses>
-        <license/>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
     </licenses>
+
+    <!-- ========== 开发者信息 ========== -->
     <developers>
-        <developer/>
+        <developer>
+            <name>vennarshulytz</name>
+            <email>3530163057@qq.com</email>
+        </developer>
     </developers>
+
     <scm>
         <connection/>
         <developerConnection/>
