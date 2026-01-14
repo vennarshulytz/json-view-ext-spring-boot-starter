@@ -3,6 +3,8 @@ package io.github.vennarshulytz.jsonviewext.sensitive.impl;
 
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 
+import static io.github.vennarshulytz.jsonviewext.constant.DesensitizationConstants.MASK_CHAR;
+
 /**
  * 邮箱脱敏处理器
  * 保留邮箱前3个字符和@后的域名
@@ -13,7 +15,6 @@ import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 public class EmailType implements SensitiveType {
 
     private static final int PREFIX_LENGTH = 3;
-    private static final char MASK_CHAR = '*';
 
     @Override
     public String desensitize(String value) {

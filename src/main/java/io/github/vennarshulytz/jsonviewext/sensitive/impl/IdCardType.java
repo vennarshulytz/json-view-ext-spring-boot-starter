@@ -2,6 +2,8 @@ package io.github.vennarshulytz.jsonviewext.sensitive.impl;
 
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 
+import static io.github.vennarshulytz.jsonviewext.constant.DesensitizationConstants.MASK_CHAR;
+
 /**
  * 身份证号脱敏处理器
  * 保留前6位和后4位，中间用*号替换
@@ -12,7 +14,6 @@ import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 public class IdCardType implements SensitiveType {
     private static final int PREFIX_LENGTH = 6;
     private static final int SUFFIX_LENGTH = 4;
-    private static final char MASK_CHAR = '*';
 
     @Override
     public String desensitize(String value) {
