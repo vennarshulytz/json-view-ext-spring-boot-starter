@@ -1,7 +1,10 @@
 package io.github.vennarshulytz.jsonviewext.autoconfigure;
 
+import io.github.vennarshulytz.jsonviewext.core.FilterRuleRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.annotation.PostConstruct;
@@ -20,5 +23,11 @@ public class JsonViewExtAutoConfiguration {
     @PostConstruct
     public void init() {
         log.info("JsonViewExt Spring Boot Starter initialized");
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public FilterRuleRegistry filterRuleRegistry() {
+        return new FilterRuleRegistry();
     }
 }
