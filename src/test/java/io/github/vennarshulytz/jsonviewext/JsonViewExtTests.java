@@ -1,5 +1,8 @@
 package io.github.vennarshulytz.jsonviewext;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import io.github.vennarshulytz.jsonviewext.model.FilterRule;
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.EmailType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.IdCardType;
@@ -9,6 +12,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.junit.Assert.assertEquals;
 
+/**
+ * 测试 JsonViewExt 功能
+ *
+ * @author vennarshulytz
+ * @since 1.0.0
+ */
 @SpringBootTest
 public class JsonViewExtTests {
 
@@ -67,6 +76,19 @@ public class JsonViewExtTests {
         String result = SensitiveHandler.desensitize(PhoneType.class, original);
 
         assertEquals("123****8901", result);
+    }
+
+    @Test
+    public void testFilterRuleEquality() {
+        FilterRule rule1 = new FilterRule(
+                String.class, "test",
+                ImmutableSet.of("a", "b"), true, ImmutableMap.of());
+        FilterRule rule2 = new FilterRule(
+                String.class, "test",
+                ImmutableSet.of("c", "d"), true, ImmutableMap.of());
+
+        assertEquals(rule1, rule2); // Same class and field path
+        assertEquals(rule1.hashCode(), rule2.hashCode());
     }
 
 }
