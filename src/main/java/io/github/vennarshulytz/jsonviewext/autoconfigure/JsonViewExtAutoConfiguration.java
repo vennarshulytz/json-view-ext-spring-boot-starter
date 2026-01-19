@@ -1,6 +1,9 @@
 package io.github.vennarshulytz.jsonviewext.autoconfigure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.vennarshulytz.jsonviewext.core.FilterRuleRegistry;
+import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
+import io.github.vennarshulytz.jsonviewext.handler.JsonViewExtResponseBodyAdvice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -29,5 +32,22 @@ public class JsonViewExtAutoConfiguration {
     @ConditionalOnMissingBean
     public FilterRuleRegistry filterRuleRegistry() {
         return new FilterRuleRegistry();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JsonViewExtModule jsonViewExtModule() {
+        return new JsonViewExtModule();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JsonViewExtResponseBodyAdvice jsonViewExtResponseBodyAdvice(
+            FilterRuleRegistry ruleRegistry,
+            ObjectMapper objectMapper,
+            JsonViewExtModule jsonViewExtModule) {
+        // 注册自定义模块
+        objectMapper.registerModule(jsonViewExtModule);
+        return new JsonViewExtResponseBodyAdvice(ruleRegistry, objectMapper);
     }
 }
