@@ -2,6 +2,7 @@ package io.github.vennarshulytz.jsonviewext;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.github.vennarshulytz.jsonviewext.model.FilterContext;
 import io.github.vennarshulytz.jsonviewext.model.FilterRule;
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.EmailType;
@@ -10,7 +11,7 @@ import io.github.vennarshulytz.jsonviewext.sensitive.impl.PhoneType;
 import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 /**
  * 测试 JsonViewExt 功能
@@ -91,4 +92,62 @@ public class JsonViewExtTests {
         assertEquals(rule1.hashCode(), rule2.hashCode());
     }
 
+    @Test
+    public void testFilterContext() {
+        FilterContext context = new FilterContext();
+
+        FilterRule includeRule = new FilterRule(
+                TestEntity.class, "",
+                ImmutableSet.of("name", "value"), true, ImmutableMap.of());
+
+        context.addIncludeRule(includeRule);
+
+        assertTrue(context.hasRules());
+
+        FilterRule found = context.getApplicableRule(TestEntity.class, "");
+        assertNotNull(found);
+        assertEquals(ImmutableSet.of("name", "value"), found.getProps());
+    }
+
+    @Test
+    public void testFilterContextWithPath() {
+        FilterContext context = new FilterContext();
+
+        FilterRule generalRule = new FilterRule(
+                TestEntity.class, "",
+                ImmutableSet.of("id", "name"), true, ImmutableMap.of());
+
+        FilterRule specificRule = new FilterRule(
+                TestEntity.class, "nested.entity",
+                ImmutableSet.of("name", "value"), true, ImmutableMap.of());
+
+        context.addIncludeRule(generalRule);
+        context.addIncludeRule(specificRule);
+
+        // 精确路径匹配
+        FilterRule found = context.getApplicableRule(TestEntity.class, "nested.entity");
+        assertNotNull(found);
+        assertEquals(ImmutableSet.of("name", "value"), found.getProps());
+
+        // 通用规则匹配
+        FilterRule generalFound = context.getApplicableRule(TestEntity.class, "other.path");
+        assertNotNull(generalFound);
+        assertEquals(ImmutableSet.of("id", "name"), generalFound.getProps());
+    }
+
+    // 测试实体类
+    public static class TestEntity {
+        private String id;
+        private String name;
+        private String value;
+
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+
+        public String getValue() { return value; }
+        public void setValue(String value) { this.value = value; }
+    }
 }
