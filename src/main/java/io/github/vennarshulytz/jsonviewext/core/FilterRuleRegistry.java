@@ -11,9 +11,10 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 过滤规则注册中心，负责解析注解
+ * 过滤规则注册中心，负责解析注解并缓存规则
  *
  * @author vennarshulytz
  * @since 1.0.0
@@ -21,6 +22,18 @@ import java.util.*;
 public class FilterRuleRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(FilterRuleRegistry.class);
+
+    /**
+     * 方法级别的规则缓存
+     */
+    private final Map<Method, FilterContext> methodRuleCache = new ConcurrentHashMap<>();
+
+    /**
+     * 解析并缓存方法的过滤规则
+     */
+    public FilterContext getOrCreateContext(Method method) {
+        return methodRuleCache.computeIfAbsent(method, this::parseAnnotation);
+    }
 
     /**
      * 解析 @JsonViewExt 注解

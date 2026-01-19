@@ -36,6 +36,44 @@ public class FilterContext {
                 .put(rule.getFieldPath(), rule);
     }
 
+    /**
+     * 获取适用的规则（优先匹配精确路径，其次匹配通用规则）
+     */
+    public FilterRule getApplicableRule(Class<?> clazz, String currentPath) {
+        // 优先查找 include 规则
+        FilterRule includeRule = findMatchingRule(includeRules, clazz, currentPath);
+        if (includeRule != null) {
+            return includeRule;
+        }
+
+        // 其次查找 exclude 规则
+        return findMatchingRule(excludeRules, clazz, currentPath);
+    }
+
+    /**
+     * 查找匹配的规则
+     */
+    private FilterRule findMatchingRule(Map<Class<?>, Map<String, FilterRule>> rulesMap,
+                                        Class<?> clazz, String currentPath) {
+        Map<String, FilterRule> classRules = rulesMap.get(clazz);
+        if (classRules == null || classRules.isEmpty()) {
+            return null;
+        }
+
+        // 优先匹配精确路径
+        FilterRule exactMatch = classRules.get(currentPath);
+        if (exactMatch != null) {
+            return exactMatch;
+        }
+
+        // 查找通用规则（无路径）
+        return classRules.get("");
+    }
+
+    public boolean hasRules() {
+        return !includeRules.isEmpty() || !excludeRules.isEmpty();
+    }
+
     @Override
     public String toString() {
         return "FilterContext{" +
