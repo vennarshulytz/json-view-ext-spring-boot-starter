@@ -1,5 +1,7 @@
 package io.github.vennarshulytz.jsonviewext.model;
 
+import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -72,6 +74,32 @@ public class FilterContext {
 
     public boolean hasRules() {
         return !includeRules.isEmpty() || !excludeRules.isEmpty();
+    }
+
+    /**
+     * 字段序列化结果
+     */
+    public static class FieldSerializationResult {
+        private final boolean shouldSerialize;
+        private final Class<? extends SensitiveType> sensitiveType;
+
+        public FieldSerializationResult(boolean shouldSerialize,
+                                        Class<? extends SensitiveType> sensitiveType) {
+            this.shouldSerialize = shouldSerialize;
+            this.sensitiveType = sensitiveType;
+        }
+
+        public boolean shouldSerialize() {
+            return shouldSerialize;
+        }
+
+        public Class<? extends SensitiveType> getSensitiveType() {
+            return sensitiveType;
+        }
+
+        public boolean hasSensitiveType() {
+            return sensitiveType != null;
+        }
     }
 
     @Override
