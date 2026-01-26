@@ -149,9 +149,7 @@
                             <encoding>${project.build.sourceEncoding}</encoding>
                             <charset>${project.build.sourceEncoding}</charset>
                             <docencoding>${project.build.sourceEncoding}</docencoding>
-                            <!-- JDK 17+ 需要这个配置 -->
-                            <!-- <additionalJOption>-Xdoclint:none</additionalJOption> -->
-                            <failOnError>false</failOnError>
+                            <additionalJOption>-Xdoclint:none</additionalJOption>
                         </configuration>
                         <executions>
                             <execution>
@@ -175,13 +173,6 @@
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
-                                <configuration>
-                                    <!-- GPG 签名配置 -->
-                                    <gpgArguments>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
