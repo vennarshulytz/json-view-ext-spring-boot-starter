@@ -1,13 +1,17 @@
 package io.github.vennarshulytz.jsonviewext;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import io.github.vennarshulytz.jsonviewext.core.JsonViewExtContextHolder;
+import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
 import io.github.vennarshulytz.jsonviewext.model.FilterContext;
 import io.github.vennarshulytz.jsonviewext.model.FilterRule;
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.EmailType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.IdCardType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.PhoneType;
+import org.junit.Before;
 import org.junit.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -21,6 +25,14 @@ import static org.junit.Assert.*;
  */
 @SpringBootTest
 public class JsonViewExtTests {
+
+    private ObjectMapper objectMapper;
+
+    @Before
+    public void setUp() {
+        objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JsonViewExtModule());
+    }
 
     @Test
     public void testEmailDesensitize() {
@@ -133,6 +145,31 @@ public class JsonViewExtTests {
         FilterRule generalFound = context.getApplicableRule(TestEntity.class, "other.path");
         assertNotNull(generalFound);
         assertEquals(ImmutableSet.of("id", "name"), generalFound.getProps());
+    }
+
+    @Test
+    public void testSerializationWithFilter() throws Exception {
+        TestEntity entity = new TestEntity();
+        entity.setId("123");
+        entity.setName("Test");
+        entity.setValue("Secret");
+
+        FilterContext context = new FilterContext();
+        FilterRule rule = new FilterRule(
+                TestEntity.class, "",
+                ImmutableSet.of("id", "name"), true, ImmutableMap.of());
+        context.addIncludeRule(rule);
+
+        try {
+            JsonViewExtContextHolder.setContext(context);
+            String json = objectMapper.writeValueAsString(entity);
+
+            assertTrue(json.contains("id"));
+            assertTrue(json.contains("name"));
+            assertFalse(json.contains("Secret"));
+        } finally {
+            JsonViewExtContextHolder.clear();
+        }
     }
 
     // 测试实体类
