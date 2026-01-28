@@ -17,6 +17,7 @@ In Spring Boot projects, data returned from the Controller layer often needs to 
 - **Sensitive data masking**: Built-in masking processors with custom extension support
 - **Priority mechanism**: include has higher priority than exclude, with clear rules
 - **Zero-intrusion design**: No need to modify existing entity classes, just add annotations to Controller methods
+- **Multi-version support**: Compatible with Spring Boot 1.x, 2.x, and 3.x
 
 ## 🎯 Background
 
@@ -42,11 +43,21 @@ For future refactoring to VO entities, we recommend using our IDEA plugin **[Fas
 
 👉 [Plugin Details](https://plugins.jetbrains.com/plugin/28433-fastconvert/about)
 
+##  🔄 Version Compatibility
+
+| Starter Module                       | Spring Boot | JDK  | Servlet API |
+| ------------------------------------ | ----------- | ---- | ----------- |
+| `json-view-ext-spring-boot-starter`  | 1.x / 2.x   | 8+   | javax       |
+| `json-view-ext-spring-boot3-starter` | 3.x         | 17+  | jakarta     |
+
 ## 🚀 Quick Start
 
 ### 1. Add Dependency
 
+#### Spring Boot 1.x / Spring Boot 2.x（JDK 8+）
+
 **Maven:**
+
 ```xml
 <dependency>
     <groupId>io.github.vennarshulytz</groupId>
@@ -58,6 +69,24 @@ For future refactoring to VO entities, we recommend using our IDEA plugin **[Fas
 **Gradle:**
 ```groovy
 implementation 'io.github.vennarshulytz:json-view-ext-spring-boot-starter:1.0.0'
+```
+
+#### Spring Boot 3.x（JDK 17+）
+
+**Maven:**
+
+```xml
+<dependency>
+    <groupId>io.github.vennarshulytz</groupId>
+    <artifactId>json-view-ext-spring-boot3-starter</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+**Gradle:**
+
+```groovy
+implementation 'io.github.vennarshulytz:json-view-ext-spring-boot3-starter:2.0.0'
 ```
 
 ### 2. Enable Feature
@@ -536,6 +565,15 @@ Using custom masking processor:
 | field exact match takes priority | Rules with field take priority over generic rules without field |
 | Later definitions override earlier ones | For multiple rules with same clazz and field, the later one takes effect |
 | Nested paths use `.` separator | e.g., `managerList1.address1` means the address1 property under managerList1 |
+
+## 🧱 Module Structure
+
+```
+json-view-ext-spring-boot-starter/
+├── json-view-ext-core                    # Core module
+├── json-view-ext-spring-boot-starter    # Spring Boot 1.x / Spring Boot 2.x support  (JDK 8+)
+└── json-view-ext-spring-boot3-starter    # Spring Boot 3.x support (JDK 17+)
+```
 
 ## 🤝 Contributing
 

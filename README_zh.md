@@ -17,6 +17,7 @@
 - **敏感数据脱敏**：内置脱敏处理器，支持自定义扩展
 - **优先级机制**：include 优先级高于 exclude，规则清晰明确
 - **零侵入设计**：无需修改现有实体类，仅需在 Controller 方法上添加注解
+- **多版本支持**：兼容 Spring Boot 1.x、2.x 和 3.x
 
 ## 🎯 项目背景
 
@@ -42,11 +43,23 @@
 
 👉 [插件详细介绍](https://plugins.jetbrains.com/plugin/28433-fastconvert/about)
 
+##  🔄 版本兼容性
+
+| Starter 模块                         | Spring Boot 版本 | JDK 版本 | Servlet API |
+| ------------------------------------ | ---------------- | -------- | ----------- |
+| `json-view-ext-spring-boot-starter`  | 1.x / 2.x        | 8+       | javax       |
+| `json-view-ext-spring-boot3-starter` | 3.x              | 17+      | jakarta     |
+
 ## 🚀 快速开始
 
 ### 1. 添加依赖
 
+根据您的 Spring Boot 版本选择合适的 Starter：
+
+#### Spring Boot 1.x / Spring Boot 2.x（JDK 8+）
+
 **Maven:**
+
 ```xml
 <dependency>
     <groupId>io.github.vennarshulytz</groupId>
@@ -58,6 +71,24 @@
 **Gradle:**
 ```groovy
 implementation 'io.github.vennarshulytz:json-view-ext-spring-boot-starter:1.0.0'
+```
+
+#### Spring Boot 3.x（JDK 17+）
+
+**Maven:**
+
+```xml
+<dependency>
+    <groupId>io.github.vennarshulytz</groupId>
+    <artifactId>json-view-ext-spring-boot3-starter</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+**Gradle:**
+
+```groovy
+implementation 'io.github.vennarshulytz:json-view-ext-spring-boot3-starter:2.0.0'
 ```
 
 ### 2. 启用功能
@@ -536,6 +567,15 @@ public class BankCardType implements SensitiveType {
 | field 精确匹配优先 | 带 field 的规则优先于不带 field 的通用规则 |
 | 后定义覆盖先定义 | 多个相同 clazz 和 field 的规则，后定义的生效 |
 | 嵌套路径使用 `.` 分隔 | 如 `managerList1.address1` 表示 managerList1 下的 address1 属性 |
+
+## 🧱 模块结构
+
+```
+json-view-ext-spring-boot-starter/
+├── json-view-ext-core                    # 核心模块
+├── json-view-ext-spring-boot-starter     # Spring Boot 1.x / Spring Boot 2.x 支持 （JDK 8+）
+└── json-view-ext-spring-boot3-starter    # Spring Boot 3.x 支持 （JDK 17+）
+```
 
 ## 🤝 贡献指南
 
