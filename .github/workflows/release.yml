@@ -101,8 +101,8 @@ jobs:
         with:
           name: spring-boot-artifacts
           path: |
-            module-spring-boot/target/*.jar
-            module-spring-boot/target/*.pom
+            json-view-ext-spring-boot-starter-javax/target/*.jar
+            json-view-ext-spring-boot-starter-javax/target/*.pom
           retention-days: 5
 
   # ==========================================================================
@@ -114,7 +114,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: module-spring-boot3
+        working-directory: json-view-ext-spring-boot3-starter-jakarta
     
     steps:
       # ----------------------------------------------------------------------
@@ -187,8 +187,8 @@ jobs:
         with:
           name: spring-boot3-artifacts
           path: |
-            module-spring-boot3/target/*.jar
-            module-spring-boot3/target/*.pom
+            json-view-ext-spring-boot3-starter-jakarta/target/*.jar
+            json-view-ext-spring-boot3-starter-jakarta/target/*.pom
           retention-days: 5
 
   # ==========================================================================
@@ -277,8 +277,8 @@ jobs:
             echo "### Spring Boot 1.x / Spring Boot 2.x (JDK 8+)"
             echo '```xml'
             echo "<dependency>"
-            echo "    <groupId>com.yourgroup</groupId>"
-            echo "    <artifactId>module-spring-boot</artifactId>"
+            echo "    <groupId>io.github.vennarshulytz</groupId>"
+            echo "    <artifactId>json-view-ext-spring-boot-starter</artifactId>"
             echo "    <version>${{ steps.version.outputs.VERSION }}</version>"
             echo "</dependency>"
             echo '```'
@@ -286,8 +286,8 @@ jobs:
             echo "### Spring Boot 3.x (JDK 17+)"
             echo '```xml'
             echo "<dependency>"
-            echo "    <groupId>com.yourgroup</groupId>"
-            echo "    <artifactId>module-spring-boot3</artifactId>"
+            echo "    <groupId>io.github.vennarshulytz</groupId>"
+            echo "    <artifactId>json-view-ext-spring-boot3-starter</artifactId>"
             echo "    <version>${{ steps.version.outputs.VERSION }}</version>"
             echo "</dependency>"
             echo '```'
@@ -344,10 +344,10 @@ jobs:
           echo "=============================================="
           echo ""
           echo " Published Modules:"
-          echo "  - module-spring-boot (JDK 8)"
-          echo "  - module-spring-boot3 (JDK 17)"
+          echo "  - json-view-ext-spring-boot-starter-javax (JDK 8)"
+          echo "  - json-view-ext-spring-boot3-starter-jakarta (JDK 17)"
           echo ""
           echo " Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.TAG_NAME }}"
-          echo " Maven Central: https://search.maven.org/search?q=g:com.yourgroup"
+          echo " Maven Central: https://search.maven.org/search?q=g:io.github.vennarshulytz"
           echo ""
           echo "=============================================="
