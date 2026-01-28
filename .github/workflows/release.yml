@@ -39,13 +39,12 @@ concurrency:
 
 jobs:
   # ===========================================================================
-  # Job 1: 发布父 POM 到 Maven 中央仓库
+  # Job 1: 发布到 Maven 中央仓库
   # ===========================================================================
-  # 父 POM 必须先发布，因为所有子模块都依赖它
   # 使用 JDK 17 构建（兼容性更好）
   # ===========================================================================
   publish-parent:
-    name: 📦 Publish Parent POM
+    name: 📦 Publish
     runs-on: ubuntu-latest
 
     outputs:
@@ -74,48 +73,20 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       # ------------------------------------------------------------------------
-      # Step 3: 配置 GPG 密钥（手动方式，更可靠）
+      # Step 3: 配置 GPG
       # ------------------------------------------------------------------------
-      - name: 🔐 Configure GPG Key
+      - name: Configure GPG for loopback mode
         run: |
-          echo "📥 Importing GPG private key..."
-          
-          # 创建 GPG 目录并设置权限
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          
-          # 配置 GPG 以在非交互式模式下工作
-          cat > ~/.gnupg/gpg.conf << EOF
-          use-agent
-          pinentry-mode loopback
-          EOF
-          
-          cat > ~/.gnupg/gpg-agent.conf << EOF
-          allow-loopback-pinentry
-          EOF
-          
-          # 重启 GPG 代理以应用新配置
-          echo "🔄 Restarting GPG agent..."
-          gpg-connect-agent reloadagent /bye || true
-          
-          # 导入 GPG 私钥
-          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
-          
-          # 获取密钥 ID 并设置信任级别
-          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "🔑 GPG Key ID: $KEY_ID"
-          
-          # 设置密钥为最终信任
-          echo "$KEY_ID:6:" | gpg --import-ownertrust
-          
-          echo "✅ GPG key configured successfully"
-            # ------------------------------------------------------------------------
-      # Step 3: 从 tag 中提取版本号
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "use-agent" >> ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpgconf --kill gpg-agent    
+
+      # Step 4: 从 tag 中提取版本号
       # ------------------------------------------------------------------------
       - name: 🏷️ Extract Version from Tag
         id: version
@@ -136,28 +107,12 @@ jobs:
           fi
 
       # ------------------------------------------------------------------------
-      # Step 4: 更新所有模块的版本号
+      # Step 5: 发布到 Maven 中央仓库
       # ------------------------------------------------------------------------
-      - name: 📝 Update Version in All pom.xml Files
+      - name: 🚀 Publish to Maven Central
         run: |
-          echo "🔄 Updating all modules to version ${{ steps.version.outputs.VERSION }}..."
-          mvn versions:set \
-            -DnewVersion=${{ steps.version.outputs.VERSION }} \
-            -DgenerateBackupPoms=false \
-            -DprocessAllModules=true
-          echo "✅ Version updated successfully"
-
-      # ------------------------------------------------------------------------
-      # Step 5: 发布父 POM 到 Maven 中央仓库
-      # ------------------------------------------------------------------------
-      - name: 🚀 Publish Parent POM to Maven Central
-        run: |
-          echo "📤 Publishing Parent POM to Maven Central..."
-          mvn ${{ env.MAVEN_CLI_OPTS }} deploy \
-            -N \
-            -Prelease \
-            -DskipTests=true \
-            -Dgpg.passphrase="${{ secrets.MAVEN_GPG_PASSPHRASE }}"
+          echo "📤 Publishing to Maven Central..."
+          mvn -B clean deploy -P release -DskipTests
           echo "✅ Parent POM published successfully"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
@@ -165,335 +120,13 @@ jobs:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   # ===========================================================================
-  # Job 2: 发布 Core 模块（JDK 8）
-  # ===========================================================================
-  # Core 模块需要在父 POM 发布后才能发布
-  # 使用 JDK 8 构建以保证最大兼容性
-  # ===========================================================================
-  publish-core:
-    name: 📦 Publish Core Module (JDK 8)
-    runs-on: ubuntu-latest
-    needs: [publish-parent]
-
-    steps:
-      # ------------------------------------------------------------------------
-      # Step 1: 检出代码
-      # ------------------------------------------------------------------------
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ------------------------------------------------------------------------
-      # Step 2: 设置 JDK 8 环境
-      # ------------------------------------------------------------------------
-      - name: ☕ Set up JDK 8
-        uses: actions/setup-java@v4
-        with:
-          java-version: '8'
-          distribution: 'temurin'
-          cache: 'maven'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      # ------------------------------------------------------------------------
-      # Step 3: 配置 GPG 密钥
-      # ------------------------------------------------------------------------
-      - name: 🔐 Configure GPG Key
-        run: |
-          echo "📥 Importing GPG private key..."
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-
-          cat > ~/.gnupg/gpg.conf << EOF
-          use-agent
-          pinentry-mode loopback
-          EOF
-
-          cat > ~/.gnupg/gpg-agent.conf << EOF
-          allow-loopback-pinentry
-          EOF
-
-          gpg-connect-agent reloadagent /bye || true
-          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
-
-          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "🔑 GPG Key ID: $KEY_ID"
-          echo "$KEY_ID:6:" | gpg --import-ownertrust
-          echo "✅ GPG key configured successfully"
-
-      # ------------------------------------------------------------------------
-      # Step 4: 更新版本号
-      # ------------------------------------------------------------------------
-      - name: 📝 Update Version in pom.xml
-        run: |
-          mvn versions:set \
-            -DnewVersion=${{ needs.publish-parent.outputs.version }} \
-            -DgenerateBackupPoms=false \
-            -DprocessAllModules=true
-
-      # ------------------------------------------------------------------------
-      # Step 5: 发布 Core 模块
-      # ------------------------------------------------------------------------
-      - name: 🚀 Build and Publish Core Module to Maven Central
-        run: |
-          echo "📤 Publishing Core Module to Maven Central..."
-          mvn ${{ env.MAVEN_CLI_OPTS }} clean deploy \
-            -pl json-view-ext-core \
-            -Prelease \
-            -DskipTests=${{ env.SKIP_TESTS }} \
-            -Dgpg.passphrase="${{ secrets.MAVEN_GPG_PASSPHRASE }}"
-          echo "✅ Core Module published successfully"
-        env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-
-      # ------------------------------------------------------------------------
-      # Step 6: 上传构建产物（用于 GitHub Release）
-      # ------------------------------------------------------------------------
-      - name: 📤 Upload Core Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: core-artifacts
-          path: |
-            json-view-ext-core/target/*.jar
-            !json-view-ext-core/target/*-sources.jar
-            !json-view-ext-core/target/*-javadoc.jar
-          retention-days: 5
-          if-no-files-found: warn
-
-  # ===========================================================================
-  # Job 3: 发布 Spring Boot 1.x / 2.x 模块（JDK 8）
-  # ===========================================================================
-  # 等待 Core 模块发布完成后执行
-  # 使用 JDK 8 构建
-  # ===========================================================================
-  publish-spring-boot-javax:
-    name: 📦 Publish Spring Boot 1.x/2.x Module (JDK 8)
-    runs-on: ubuntu-latest
-    needs: [publish-parent, publish-core]
-
-    steps:
-      # ------------------------------------------------------------------------
-      # Step 1: 检出代码
-      # ------------------------------------------------------------------------
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ------------------------------------------------------------------------
-      # Step 2: 设置 JDK 8 环境
-      # ------------------------------------------------------------------------
-      - name: ☕ Set up JDK 8
-        uses: actions/setup-java@v4
-        with:
-          java-version: '8'
-          distribution: 'temurin'
-          cache: 'maven'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      # ------------------------------------------------------------------------
-      # Step 3: 配置 GPG 密钥
-      # ------------------------------------------------------------------------
-      - name: 🔐 Configure GPG Key
-        run: |
-          echo "📥 Importing GPG private key..."
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-
-          cat > ~/.gnupg/gpg.conf << EOF
-          use-agent
-          pinentry-mode loopback
-          EOF
-
-          cat > ~/.gnupg/gpg-agent.conf << EOF
-          allow-loopback-pinentry
-          EOF
-
-          gpg-connect-agent reloadagent /bye || true
-          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
-
-          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "🔑 GPG Key ID: $KEY_ID"
-          echo "$KEY_ID:6:" | gpg --import-ownertrust
-          echo "✅ GPG key configured successfully"
-
-      # ------------------------------------------------------------------------
-      # Step 4: 更新版本号
-      # ------------------------------------------------------------------------
-      - name: 📝 Update Version in pom.xml
-        run: |
-          mvn versions:set \
-            -DnewVersion=${{ needs.publish-parent.outputs.version }} \
-            -DgenerateBackupPoms=false \
-            -DprocessAllModules=true
-
-      # ------------------------------------------------------------------------
-      # Step 5: 等待 Core 模块在 Maven Central 可用
-      # ------------------------------------------------------------------------
-      - name: ⏳ Wait for Core Module Availability
-        run: |
-          echo "⏳ Waiting for Core module to be available in Maven Central..."
-          # 等待一段时间确保 Core 模块已经同步到 Maven Central
-          sleep 60
-          echo "✅ Proceeding with build..."
-
-      # ------------------------------------------------------------------------
-      # Step 6: 发布 Spring Boot 1.x/2.x 模块
-      # ------------------------------------------------------------------------
-      - name: 🚀 Build and Publish Spring Boot 1.x/2.x Module to Maven Central
-        run: |
-          echo "📤 Publishing Spring Boot 1.x/2.x Module to Maven Central..."
-          mvn ${{ env.MAVEN_CLI_OPTS }} clean deploy \
-            -pl json-view-ext-spring-boot-starter-javax \
-            -Prelease \
-            -DskipTests=${{ env.SKIP_TESTS }} \
-            -Dgpg.passphrase="${{ secrets.MAVEN_GPG_PASSPHRASE }}"
-          echo "✅ Spring Boot 1.x/2.x Module published successfully"
-        env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-
-      # ------------------------------------------------------------------------
-      # Step 7: 上传构建产物
-      # ------------------------------------------------------------------------
-      - name: 📤 Upload Spring Boot 1.x/2.x Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: spring-boot-javax-artifacts
-          path: |
-            json-view-ext-spring-boot-starter-javax/target/*.jar
-            !json-view-ext-spring-boot-starter-javax/target/*-sources.jar
-            !json-view-ext-spring-boot-starter-javax/target/*-javadoc.jar
-          retention-days: 5
-          if-no-files-found: warn
-
-  # ===========================================================================
-  # Job 4: 发布 Spring Boot 3.x 模块（JDK 17）
-  # ===========================================================================
-  # 等待 Core 模块发布完成后执行
-  # 使用 JDK 17 构建（Spring Boot 3.x 最低要求）
-  # ===========================================================================
-  publish-spring-boot3-jakarta:
-    name: 📦 Publish Spring Boot 3.x Module (JDK 17)
-    runs-on: ubuntu-latest
-    needs: [publish-parent, publish-core]
-
-    steps:
-      # ------------------------------------------------------------------------
-      # Step 1: 检出代码
-      # ------------------------------------------------------------------------
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ------------------------------------------------------------------------
-      # Step 2: 设置 JDK 17 环境
-      # ------------------------------------------------------------------------
-      - name: ☕ Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'maven'
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      # ------------------------------------------------------------------------
-      # Step 3: 配置 GPG 密钥
-      # ------------------------------------------------------------------------
-      - name: 🔐 Configure GPG Key
-        run: |
-          echo "📥 Importing GPG private key..."
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          
-          cat > ~/.gnupg/gpg.conf << EOF
-          use-agent
-          pinentry-mode loopback
-          EOF
-          
-          cat > ~/.gnupg/gpg-agent.conf << EOF
-          allow-loopback-pinentry
-          EOF
-          
-          gpg-connect-agent reloadagent /bye || true
-          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
-          
-          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "🔑 GPG Key ID: $KEY_ID"
-          echo "$KEY_ID:6:" | gpg --import-ownertrust
-          echo "✅ GPG key configured successfully"
-      # ------------------------------------------------------------------------
-      # Step 4: 更新版本号
-      # ------------------------------------------------------------------------
-      - name: 📝 Update Version in pom.xml
-        run: |
-          mvn versions:set \
-            -DnewVersion=${{ needs.publish-parent.outputs.version }} \
-            -DgenerateBackupPoms=false \
-            -DprocessAllModules=true
-
-      # ------------------------------------------------------------------------
-      # Step 5: 等待 Core 模块在 Maven Central 可用
-      # ------------------------------------------------------------------------
-      - name: ⏳ Wait for Core Module Availability
-        run: |
-          echo "⏳ Waiting for Core module to be available in Maven Central..."
-          sleep 60
-          echo "✅ Proceeding with build..."
-
-      # ------------------------------------------------------------------------
-      # Step 6: 发布 Spring Boot 3.x 模块
-      # ------------------------------------------------------------------------
-      - name: 🚀 Build and Publish Spring Boot 3.x Module to Maven Central
-        run: |
-          echo "📤 Publishing Spring Boot 3.x Module to Maven Central..."
-          mvn ${{ env.MAVEN_CLI_OPTS }} clean deploy \
-            -pl json-view-ext-spring-boot3-starter-jakarta \
-            -Prelease \
-            -DskipTests=${{ env.SKIP_TESTS }} \
-            -Dgpg.passphrase="${{ secrets.MAVEN_GPG_PASSPHRASE }}"
-          echo "✅ Spring Boot 3.x Module published successfully"
-        env:
-          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-
-      # ------------------------------------------------------------------------
-      # Step 7: 上传构建产物
-      # ------------------------------------------------------------------------
-      - name: 📤 Upload Spring Boot 3.x Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: spring-boot3-jakarta-artifacts
-          path: |
-            json-view-ext-spring-boot3-starter-jakarta/target/*.jar
-            !json-view-ext-spring-boot3-starter-jakarta/target/*-sources.jar
-            !json-view-ext-spring-boot3-starter-jakarta/target/*-javadoc.jar
-          retention-days: 5
-          if-no-files-found: warn
-
-  # ===========================================================================
-  # Job 5: 创建 GitHub Release 并生成变更日志
+  # Job 2: 创建 GitHub Release 并生成变更日志
   # ===========================================================================
   # 等待所有模块发布完成后执行
   # ===========================================================================
   create-github-release:
     name: 🎉 Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [publish-parent, publish-core, publish-spring-boot-javax, publish-spring-boot3-jakarta]
 
     permissions:
       contents: write  # 创建 Release 需要写权限
@@ -712,12 +345,12 @@ jobs:
           echo ""
 
   # ===========================================================================
-  # Job 6: 发布失败时的清理和通知
+  # Job 3: 发布失败时的清理和通知
   # ===========================================================================
   notify-on-failure:
     name: 🚨 Notify on Failure
     runs-on: ubuntu-latest
-    needs: [publish-parent, publish-core, publish-spring-boot-javax, publish-spring-boot3-jakarta, create-github-release]
+    needs: [publish-parent, create-github-release]
     if: failure()
 
     steps:
