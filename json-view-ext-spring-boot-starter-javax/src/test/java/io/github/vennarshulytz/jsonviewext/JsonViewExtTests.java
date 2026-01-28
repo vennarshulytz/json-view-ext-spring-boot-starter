@@ -11,11 +11,12 @@ import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.EmailType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.IdCardType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.PhoneType;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 /**
  * 测试 JsonViewExt 功能
@@ -28,7 +29,7 @@ public class JsonViewExtTests {
 
     private ObjectMapper objectMapper;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JsonViewExtModule());

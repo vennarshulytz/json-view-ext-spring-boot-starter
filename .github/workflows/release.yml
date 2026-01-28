@@ -1,0 +1,353 @@
+name: Release and Publish to Maven Central
+
+# 触发条件：推送以 'v' 开头的标签
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 环境变量定义
+env:
+  # Maven 构建参数
+  MAVEN_OPTS: "-Xmx1024m -XX:MaxMetaspaceSize=512m"
+  # 跳过测试的选项（发布时通常已经在 CI 中测试过）
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+
+jobs:
+  # ==========================================================================
+  # Job 1: 构建并发布 Spring Boot 1.x / Spring Boot 2.x 模块（JDK 8）
+  # ==========================================================================
+  publish-spring-boot:
+    name:  Publish Spring Boot 1.x / Spring Boot 2.x Module (JDK 8)
+    runs-on: ubuntu-latest
+    
+    # 设置默认工作目录
+    defaults:
+      run:
+        working-directory: json-view-ext-spring-boot-starter-javax
+    
+    steps:
+      # ----------------------------------------------------------------------
+      # Step 1: 检出代码
+      # ----------------------------------------------------------------------
+      - name:  Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史，用于生成变更日志
+
+      # ----------------------------------------------------------------------
+      # Step 2: 设置 JDK 8 环境
+      # ----------------------------------------------------------------------
+      - name: ☕ Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          # 配置 Maven 中央仓库认证
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          # 配置 GPG 签名
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      # ----------------------------------------------------------------------
+      # Step 3: 缓存 Maven 依赖
+      # ----------------------------------------------------------------------
+      - name:  Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-boot-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-boot-
+            ${{ runner.os }}-maven-
+
+      # ----------------------------------------------------------------------
+      # Step 4: 从 tag 中提取版本号并更新 pom.xml
+      # ----------------------------------------------------------------------
+      - name: ️ Extract Version from Tag
+        id: version
+        run: |
+          # 从 tag 中移除 'v' 前缀获取版本号
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo " Release Version: $VERSION"
+
+      - name:  Update Version in pom.xml
+        run: |
+          mvn versions:set -DnewVersion=${{ steps.version.outputs.VERSION }} -DgenerateBackupPoms=false
+          echo "✅ Version updated to ${{ steps.version.outputs.VERSION }}"
+
+      # ----------------------------------------------------------------------
+      # Step 5: 构建并发布到 Maven 中央仓库
+      # ----------------------------------------------------------------------
+      - name:  Build and Publish to Maven Central
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} clean deploy \
+            -Prelease \
+            -DskipTests=true \
+            -Dgpg.passphrase=${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+      # ----------------------------------------------------------------------
+      # Step 6: 上传构建产物（用于后续 Release）
+      # ----------------------------------------------------------------------
+      - name:  Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-boot-artifacts
+          path: |
+            module-spring-boot/target/*.jar
+            module-spring-boot/target/*.pom
+          retention-days: 5
+
+  # ==========================================================================
+  # Job 2: 构建并发布 Spring Boot 3.x 模块（JDK 17）
+  # ==========================================================================
+  publish-spring-boot3:
+    name:  Publish Spring Boot 3.x Module (JDK 17)
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: module-spring-boot3
+    
+    steps:
+      # ----------------------------------------------------------------------
+      # Step 1: 检出代码
+      # ----------------------------------------------------------------------
+      - name:  Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ----------------------------------------------------------------------
+      # Step 2: 设置 JDK 17 环境
+      # ----------------------------------------------------------------------
+      - name: ☕ Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      # ----------------------------------------------------------------------
+      # Step 3: 缓存 Maven 依赖
+      # ----------------------------------------------------------------------
+      - name:  Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-boot3-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-boot3-
+            ${{ runner.os }}-maven-
+
+      # ----------------------------------------------------------------------
+      # Step 4: 版本处理
+      # ----------------------------------------------------------------------
+      - name: ️ Extract Version from Tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo " Release Version: $VERSION"
+
+      - name:  Update Version in pom.xml
+        run: |
+          mvn versions:set -DnewVersion=${{ steps.version.outputs.VERSION }} -DgenerateBackupPoms=false
+
+      # ----------------------------------------------------------------------
+      # Step 5: 构建并发布到 Maven 中央仓库
+      # ----------------------------------------------------------------------
+      - name:  Build and Publish to Maven Central
+        run: |
+          mvn ${{ env.MAVEN_CLI_OPTS }} clean deploy \
+            -Prelease \
+            -DskipTests=true \
+            -Dgpg.passphrase=${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+      # ----------------------------------------------------------------------
+      # Step 6: 上传构建产物
+      # ----------------------------------------------------------------------
+      - name:  Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-boot3-artifacts
+          path: |
+            module-spring-boot3/target/*.jar
+            module-spring-boot3/target/*.pom
+          retention-days: 5
+
+  # ==========================================================================
+  # Job 3: 创建 GitHub Release 并生成变更日志
+  # ==========================================================================
+  create-release:
+    name:  Create GitHub Release
+    runs-on: ubuntu-latest
+    # 等待两个发布 job 完成后再创建 Release
+    needs: [publish-spring-boot, publish-spring-boot3]
+    
+    permissions:
+      contents: write  # 需要写权限来创建 Release
+    
+    steps:
+      # ----------------------------------------------------------------------
+      # Step 1: 检出代码
+      # ----------------------------------------------------------------------
+      - name:  Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史来生成变更日志
+
+      # ----------------------------------------------------------------------
+      # Step 2: 提取版本信息
+      # ----------------------------------------------------------------------
+      - name: ️ Extract Version Info
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+          
+          # 判断是否为预发布版本（包含 alpha、beta、rc 等）
+          if [[ "$VERSION" == *"alpha"* ]] || [[ "$VERSION" == *"beta"* ]] || [[ "$VERSION" == *"rc"* ]] || [[ "$VERSION" == *"SNAPSHOT"* ]]; then
+            echo "PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ----------------------------------------------------------------------
+      # Step 3: 生成变更日志
+      # 使用 git log 对比上一个 tag 和当前 tag 之间的提交
+      # ----------------------------------------------------------------------
+      - name:  Generate Changelog
+        id: changelog
+        run: |
+          echo " Generating changelog..."
+          
+          # 获取上一个 tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_TAG=${{ github.ref_name }}
+          
+          echo "Previous tag: $PREVIOUS_TAG"
+          echo "Current tag: $CURRENT_TAG"
+          
+          # 生成变更日志内容
+          {
+            echo "##  What's Changed"
+            echo ""
+          
+            if [ -n "$PREVIOUS_TAG" ]; then
+              # 获取两个 tag 之间的提交
+              echo "###  Commits"
+              echo ""
+              git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges | head -50
+              echo ""
+              echo ""
+          
+              # 获取贡献者列表
+              echo "###  Contributors"
+              echo ""
+              git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"@%an" --no-merges | sort -u | sed 's/^/- /'
+            else
+              echo " Initial Release"
+              echo ""
+              git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges | head -30
+            fi
+          
+            echo ""
+            echo ""
+            echo "---"
+            echo ""
+            echo "##  Maven Coordinates"
+            echo ""
+            echo "### Spring Boot 1.x / Spring Boot 2.x (JDK 8+)"
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>com.yourgroup</groupId>"
+            echo "    <artifactId>module-spring-boot</artifactId>"
+            echo "    <version>${{ steps.version.outputs.VERSION }}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo ""
+            echo "### Spring Boot 3.x (JDK 17+)"
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>com.yourgroup</groupId>"
+            echo "    <artifactId>module-spring-boot3</artifactId>"
+            echo "    <version>${{ steps.version.outputs.VERSION }}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo ""
+            echo "---"
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}"
+          } > CHANGELOG.md
+          
+          # 输出到环境文件（处理多行内容）
+          echo "changelog_file=CHANGELOG.md" >> $GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------------
+      # Step 4: 下载所有构建产物
+      # ----------------------------------------------------------------------
+      - name:  Download Spring Boot 1.x / Spring Boot 2.x Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: spring-boot-artifacts
+          path: artifacts/spring-boot
+
+      - name:  Download Spring Boot 3.x Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: spring-boot3-artifacts
+          path: artifacts/spring-boot3
+
+      # ----------------------------------------------------------------------
+      # Step 5: 创建 GitHub Release
+      # ----------------------------------------------------------------------
+      - name:  Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.TAG_NAME }}
+          name: "Release ${{ steps.version.outputs.TAG_NAME }}"
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ steps.version.outputs.PRERELEASE }}
+          files: |
+            artifacts/spring-boot/*.jar
+            artifacts/spring-boot3/*.jar
+          fail_on_unmatched_files: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ----------------------------------------------------------------------
+      # Step 6: 发布成功通知（可选：集成 Slack/钉钉等）
+      # ----------------------------------------------------------------------
+      - name: ✅ Release Summary
+        run: |
+          echo "=============================================="
+          echo " Release ${{ steps.version.outputs.TAG_NAME }} Published Successfully!"
+          echo "=============================================="
+          echo ""
+          echo " Published Modules:"
+          echo "  - module-spring-boot (JDK 8)"
+          echo "  - module-spring-boot3 (JDK 17)"
+          echo ""
+          echo " Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.TAG_NAME }}"
+          echo " Maven Central: https://search.maven.org/search?q=g:com.yourgroup"
+          echo ""
+          echo "=============================================="
