@@ -14,8 +14,8 @@
 
     <modules>
         <module>json-view-ext-core</module>
-        <module>json-view-ext-spring-boot-starter-javax</module>
-        <module>json-view-ext-spring-boot3-starter-jakarta</module>
+        <module>json-view-ext-spring-boot-starter</module>
+        <module>json-view-ext-spring-boot3-starter</module>
     </modules>
 
     <!-- ========== License ========== -->
