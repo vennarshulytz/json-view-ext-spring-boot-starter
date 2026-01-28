@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - 'v*'
-
+  workflow_dispatch:
 # 环境变量定义
 env:
   # Maven 构建参数
