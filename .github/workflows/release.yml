@@ -74,10 +74,47 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
 
       # ------------------------------------------------------------------------
+      # Step 3: 配置 GPG 密钥（手动方式，更可靠）
+      # ------------------------------------------------------------------------
+      - name: 🔐 Configure GPG Key
+        run: |
+          echo "📥 Importing GPG private key..."
+          
+          # 创建 GPG 目录并设置权限
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          
+          # 配置 GPG 以在非交互式模式下工作
+          cat > ~/.gnupg/gpg.conf << EOF
+          use-agent
+          pinentry-mode loopback
+          EOF
+          
+          cat > ~/.gnupg/gpg-agent.conf << EOF
+          allow-loopback-pinentry
+          EOF
+          
+          # 重启 GPG 代理以应用新配置
+          echo "🔄 Restarting GPG agent..."
+          gpg-connect-agent reloadagent /bye || true
+          
+          # 导入 GPG 私钥
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          # 获取密钥 ID 并设置信任级别
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "🔑 GPG Key ID: $KEY_ID"
+          
+          # 设置密钥为最终信任
+          echo "$KEY_ID:6:" | gpg --import-ownertrust
+          
+          echo "✅ GPG key configured successfully"
+            # ------------------------------------------------------------------------
       # Step 3: 从 tag 中提取版本号
       # ------------------------------------------------------------------------
       - name: 🏷️ Extract Version from Tag
@@ -159,11 +196,36 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      # ------------------------------------------------------------------------
+      # Step 3: 配置 GPG 密钥
+      # ------------------------------------------------------------------------
+      - name: 🔐 Configure GPG Key
+        run: |
+          echo "📥 Importing GPG private key..."
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+
+          cat > ~/.gnupg/gpg.conf << EOF
+          use-agent
+          pinentry-mode loopback
+          EOF
+
+          cat > ~/.gnupg/gpg-agent.conf << EOF
+          allow-loopback-pinentry
+          EOF
+
+          gpg-connect-agent reloadagent /bye || true
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "🔑 GPG Key ID: $KEY_ID"
+          echo "$KEY_ID:6:" | gpg --import-ownertrust
+          echo "✅ GPG key configured successfully"
 
       # ------------------------------------------------------------------------
-      # Step 3: 更新版本号
+      # Step 4: 更新版本号
       # ------------------------------------------------------------------------
       - name: 📝 Update Version in pom.xml
         run: |
@@ -173,7 +235,7 @@ jobs:
             -DprocessAllModules=true
 
       # ------------------------------------------------------------------------
-      # Step 4: 发布 Core 模块
+      # Step 5: 发布 Core 模块
       # ------------------------------------------------------------------------
       - name: 🚀 Build and Publish Core Module to Maven Central
         run: |
@@ -190,7 +252,7 @@ jobs:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
       # ------------------------------------------------------------------------
-      # Step 5: 上传构建产物（用于 GitHub Release）
+      # Step 6: 上传构建产物（用于 GitHub Release）
       # ------------------------------------------------------------------------
       - name: 📤 Upload Core Artifacts
         uses: actions/upload-artifact@v4
@@ -235,11 +297,36 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      # ------------------------------------------------------------------------
+      # Step 3: 配置 GPG 密钥
+      # ------------------------------------------------------------------------
+      - name: 🔐 Configure GPG Key
+        run: |
+          echo "📥 Importing GPG private key..."
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+
+          cat > ~/.gnupg/gpg.conf << EOF
+          use-agent
+          pinentry-mode loopback
+          EOF
+
+          cat > ~/.gnupg/gpg-agent.conf << EOF
+          allow-loopback-pinentry
+          EOF
+
+          gpg-connect-agent reloadagent /bye || true
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "🔑 GPG Key ID: $KEY_ID"
+          echo "$KEY_ID:6:" | gpg --import-ownertrust
+          echo "✅ GPG key configured successfully"
 
       # ------------------------------------------------------------------------
-      # Step 3: 更新版本号
+      # Step 4: 更新版本号
       # ------------------------------------------------------------------------
       - name: 📝 Update Version in pom.xml
         run: |
@@ -249,7 +336,7 @@ jobs:
             -DprocessAllModules=true
 
       # ------------------------------------------------------------------------
-      # Step 4: 等待 Core 模块在 Maven Central 可用
+      # Step 5: 等待 Core 模块在 Maven Central 可用
       # ------------------------------------------------------------------------
       - name: ⏳ Wait for Core Module Availability
         run: |
@@ -259,7 +346,7 @@ jobs:
           echo "✅ Proceeding with build..."
 
       # ------------------------------------------------------------------------
-      # Step 5: 发布 Spring Boot 1.x/2.x 模块
+      # Step 6: 发布 Spring Boot 1.x/2.x 模块
       # ------------------------------------------------------------------------
       - name: 🚀 Build and Publish Spring Boot 1.x/2.x Module to Maven Central
         run: |
@@ -276,7 +363,7 @@ jobs:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
       # ------------------------------------------------------------------------
-      # Step 6: 上传构建产物
+      # Step 7: 上传构建产物
       # ------------------------------------------------------------------------
       - name: 📤 Upload Spring Boot 1.x/2.x Artifacts
         uses: actions/upload-artifact@v4
@@ -321,11 +408,35 @@ jobs:
           server-id: central
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
-
+#          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+#          gpg-passphrase: MAVEN_GPG_PASSPHRASE
       # ------------------------------------------------------------------------
-      # Step 3: 更新版本号
+      # Step 3: 配置 GPG 密钥
+      # ------------------------------------------------------------------------
+      - name: 🔐 Configure GPG Key
+        run: |
+          echo "📥 Importing GPG private key..."
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          
+          cat > ~/.gnupg/gpg.conf << EOF
+          use-agent
+          pinentry-mode loopback
+          EOF
+          
+          cat > ~/.gnupg/gpg-agent.conf << EOF
+          allow-loopback-pinentry
+          EOF
+          
+          gpg-connect-agent reloadagent /bye || true
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "🔑 GPG Key ID: $KEY_ID"
+          echo "$KEY_ID:6:" | gpg --import-ownertrust
+          echo "✅ GPG key configured successfully"
+      # ------------------------------------------------------------------------
+      # Step 4: 更新版本号
       # ------------------------------------------------------------------------
       - name: 📝 Update Version in pom.xml
         run: |
@@ -335,7 +446,7 @@ jobs:
             -DprocessAllModules=true
 
       # ------------------------------------------------------------------------
-      # Step 4: 等待 Core 模块在 Maven Central 可用
+      # Step 5: 等待 Core 模块在 Maven Central 可用
       # ------------------------------------------------------------------------
       - name: ⏳ Wait for Core Module Availability
         run: |
@@ -344,7 +455,7 @@ jobs:
           echo "✅ Proceeding with build..."
 
       # ------------------------------------------------------------------------
-      # Step 5: 发布 Spring Boot 3.x 模块
+      # Step 6: 发布 Spring Boot 3.x 模块
       # ------------------------------------------------------------------------
       - name: 🚀 Build and Publish Spring Boot 3.x Module to Maven Central
         run: |
@@ -361,7 +472,7 @@ jobs:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
       # ------------------------------------------------------------------------
-      # Step 6: 上传构建产物
+      # Step 7: 上传构建产物
       # ------------------------------------------------------------------------
       - name: 📤 Upload Spring Boot 3.x Artifacts
         uses: actions/upload-artifact@v4
