@@ -14,7 +14,7 @@
 
     <modules>
         <module>json-view-ext-core</module>
-        <module>json-view-ext-spring-boot-starter</module>
+<!--        <module>json-view-ext-spring-boot-starter</module>-->
         <module>json-view-ext-spring-boot3-starter</module>
     </modules>
 
