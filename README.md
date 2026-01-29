@@ -569,10 +569,10 @@ Using custom masking processor:
 ## 🧱 Module Structure
 
 ```
-json-view-ext-spring-boot-starter/
-├── json-view-ext-core                          # Core module
-├── json-view-ext-spring-boot-starter-javax     # Spring Boot 1.x / Spring Boot 2.x support  (JDK 8+)
-└── json-view-ext-spring-boot3-starter-jakarta  # Spring Boot 3.x support (JDK 17+)
+json-view-ext-parent/
+├── json-view-ext-core                  # Core module
+├── json-view-ext-spring-boot-starter   # Spring Boot 1.x / Spring Boot 2.x support  (JDK 8+)
+└── json-view-ext-spring-boot3-starter  # Spring Boot 3.x support (JDK 17+)
 ```
 
 ## 🤝 Contributing
