@@ -1,0 +1,363 @@
+name: Create GitHub Release
+
+# =============================================================================
+# 触发条件
+# =============================================================================
+on:
+  # 推送以 'v' 开头的标签时触发
+  push:
+    tags:
+      - 'v*'
+
+  # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '要发布的标签名称（如 v1.0.0）'
+        required: true
+        type: string
+      skip_maven_check:
+        description: '跳过 Maven Central 可用性检查'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+# =============================================================================
+# 并发控制
+# =============================================================================
+concurrency:
+  group: github-release-${{ github.ref }}
+  cancel-in-progress: false
+
+# =============================================================================
+# 作业定义
+# =============================================================================
+jobs:
+  # ===========================================================================
+  # Job 1: 验证与准备
+  # ===========================================================================
+  prepare:
+    name: 🔍 Validate & Prepare
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      tag_name: ${{ steps.extract-version.outputs.tag_name }}
+      is_prerelease: ${{ steps.extract-version.outputs.is_prerelease }}
+      skip_maven_check: ${{ steps.set-options.outputs.skip_maven_check }}
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: ⚙️ Set Runtime Options
+        id: set-options
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "skip_maven_check=${{ github.event.inputs.skip_maven_check }}" >> $GITHUB_OUTPUT
+          else
+            echo "skip_maven_check=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🏷️ Extract Version from Tag
+        id: extract-version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          
+          echo "📌 Processing tag: $TAG_NAME"
+          
+          # 验证标签格式
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG_NAME"
+            echo "   Expected format: v<major>.<minor>.<patch>[-<prerelease>]"
+            exit 1
+          fi
+          
+          VERSION="${TAG_NAME#v}"
+          
+          if [[ "$VERSION" =~ (alpha|beta|rc|snapshot|SNAPSHOT|RC|Alpha|Beta) ]]; then
+            IS_PRERELEASE="true"
+            echo "⚠️  Pre-release version detected"
+          else
+            IS_PRERELEASE="false"
+            echo "✅ Stable release version"
+          fi
+          
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║       Version Information              ║"
+          echo "╠════════════════════════════════════════╣"
+          echo "║  Tag:        $TAG_NAME"
+          echo "║  Version:    $VERSION"
+          echo "║  Prerelease: $IS_PRERELEASE"
+          echo "╚════════════════════════════════════════╝"
+
+  # ===========================================================================
+  # Job 2: 可选的 Maven Central 检查
+  # ===========================================================================
+  check-maven:
+    name: 🔎 Check Maven Central (Optional)
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    if: needs.prepare.outputs.skip_maven_check != 'true'
+    continue-on-error: true  # 即使检查失败也继续
+
+    outputs:
+      maven_available: ${{ steps.check.outputs.available }}
+
+    steps:
+      - name: 🔍 Check Maven Central Availability
+        id: check
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          ARTIFACT="json-view-ext-core"
+          GROUP_PATH="io/github/vennarshulytz"
+          
+          echo "🔍 Checking if version $VERSION is available on Maven Central..."
+          echo ""
+          
+          # 检查 Maven Central (可能需要等待同步)
+          URL="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT}/${VERSION}/${ARTIFACT}-${VERSION}.pom"
+          
+          echo "   Checking: $URL"
+          
+          # 最多等待 5 分钟
+          MAX_ATTEMPTS=10
+          WAIT_SECONDS=30
+          
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+          
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Artifact found on Maven Central!"
+              echo "available=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          
+            echo "   Attempt $i/$MAX_ATTEMPTS: HTTP $HTTP_CODE (waiting ${WAIT_SECONDS}s...)"
+          
+            if [ $i -lt $MAX_ATTEMPTS ]; then
+              sleep $WAIT_SECONDS
+            fi
+          done
+          
+          echo ""
+          echo "⚠️  Artifact not yet available on Maven Central"
+          echo "   This is normal - it may take 10-30 minutes to sync"
+          echo "available=false" >> $GITHUB_OUTPUT
+
+  # ===========================================================================
+  # Job 3: 创建 GitHub Release
+  # ===========================================================================
+  create-release:
+    name: 🎉 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, check-maven]
+    # 即使 maven check 失败或被跳过也执行
+    if: always() && needs.prepare.result == 'success'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag_name }}
+          fetch-depth: 0
+
+      - name: 📋 Generate Changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          CURRENT_TAG="${{ needs.prepare.outputs.tag_name }}"
+          
+          echo "📝 Generating changelog for $CURRENT_TAG..."
+          
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+          
+          echo "   Current tag:  $CURRENT_TAG"
+          echo "   Previous tag: ${PREVIOUS_TAG:-'(initial release)'}"
+          echo ""
+          
+          {
+            echo "## 🎯 What's Changed in ${CURRENT_TAG}"
+            echo ""
+          
+            if [ -n "$PREVIOUS_TAG" ]; then
+              COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..${CURRENT_TAG})
+              echo "📊 **${COMMIT_COUNT} commits** since ${PREVIOUS_TAG}"
+              echo ""
+          
+              echo "### ✨ New Features"
+              echo ""
+              FEATURES=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges --grep="^feat" --grep="^feature" --grep="^add" -i 2>/dev/null | head -15)
+              if [ -n "$FEATURES" ]; then
+                echo "$FEATURES"
+              else
+                echo "_No new features in this release_"
+              fi
+              echo ""
+          
+              echo "### 🐛 Bug Fixes"
+              echo ""
+              FIXES=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges --grep="^fix" --grep="^bug" --grep="^hotfix" -i 2>/dev/null | head -15)
+              if [ -n "$FIXES" ]; then
+                echo "$FIXES"
+              else
+                echo "_No bug fixes in this release_"
+              fi
+              echo ""
+          
+              echo "### 📚 Documentation"
+              echo ""
+              DOCS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges --grep="^doc" --grep="^docs" -i 2>/dev/null | head -10)
+              if [ -n "$DOCS" ]; then
+                echo "$DOCS"
+              else
+                echo "_No documentation changes_"
+              fi
+              echo ""
+          
+              echo "### 🔧 Other Changes"
+              echo ""
+              git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges 2>/dev/null | \
+                grep -v -i "^- feat" | grep -v -i "^- fix" | grep -v -i "^- doc" | grep -v -i "^- add" | grep -v -i "^- bug" | head -10 || echo "_No other changes_"
+              echo ""
+          
+            else
+              echo "🎉 **Initial Release!**"
+              echo ""
+              echo "This is the first release of JSON View Extension."
+              echo ""
+              echo "### 📝 Initial Commits"
+              echo ""
+              git log --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" --no-merges 2>/dev/null | head -20
+              echo ""
+            fi
+          
+            echo ""
+            echo "---"
+            echo ""
+          
+            echo "## 📦 Installation"
+            echo ""
+            echo "Add the following dependency to your \`pom.xml\`:"
+            echo ""
+          
+            echo "### Core Module (JDK 8+)"
+            echo ""
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>io.github.vennarshulytz</groupId>"
+            echo "    <artifactId>json-view-ext-core</artifactId>"
+            echo "    <version>${VERSION}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo ""
+          
+            echo "### Spring Boot 1.x / 2.x (JDK 8+, javax)"
+            echo ""
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>io.github.vennarshulytz</groupId>"
+            echo "    <artifactId>json-view-ext-spring-boot-starter</artifactId>"
+            echo "    <version>${VERSION}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo ""
+          
+            echo "### Spring Boot 3.x (JDK 17+, jakarta)"
+            echo ""
+            echo '```xml'
+            echo "<dependency>"
+            echo "    <groupId>io.github.vennarshulytz</groupId>"
+            echo "    <artifactId>json-view-ext-spring-boot3-starter</artifactId>"
+            echo "    <version>${VERSION}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo ""
+          
+            echo "---"
+            echo ""
+          
+            echo "## 🔗 Links"
+            echo ""
+            echo "- 📖 [Documentation](https://github.com/${{ github.repository }}#readme)"
+            echo "- 🔍 [Maven Central](https://search.maven.org/search?q=g:io.github.vennarshulytz%20AND%20a:json-view-ext*)"
+            echo "- 🐛 [Report Issues](https://github.com/${{ github.repository }}/issues)"
+            echo ""
+          
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}"
+            fi
+          
+          } > CHANGELOG.md
+          
+          echo "✅ Changelog generated successfully"
+
+      - name: 🎉 Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          name: "🚀 Release ${{ needs.prepare.outputs.tag_name }}"
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          generate_release_notes: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Release Summary
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════════════╗"
+          echo "║                                                                    ║"
+          echo "║   🎉 GitHub Release Created Successfully!                          ║"
+          echo "║                                                                    ║"
+          echo "╠════════════════════════════════════════════════════════════════════╣"
+          echo "║                                                                    ║"
+          echo "║   📌 Version:     ${{ needs.prepare.outputs.version }}                              "
+          echo "║   🏷️  Tag:         ${{ needs.prepare.outputs.tag_name }}                              "
+          echo "║   📋 Prerelease:  ${{ needs.prepare.outputs.is_prerelease }}                              "
+          echo "║                                                                    ║"
+          echo "║   🔗 Release URL:                                                  ║"
+          echo "║      https://github.com/${{ github.repository }}/releases/tag/${{ needs.prepare.outputs.tag_name }}"
+          echo "║                                                                    ║"
+          echo "╚════════════════════════════════════════════════════════════════════╝"
+
+  # ===========================================================================
+  # Job 4: 失败通知
+  # ===========================================================================
+  notify-failure:
+    name: 🚨 Failure Notification
+    runs-on: ubuntu-latest
+    needs: [prepare, create-release]
+    if: failure()
+
+    steps:
+      - name: 🚨 Generate Failure Report
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════════════╗"
+          echo "║   ❌ GitHub Release Workflow Failed                                ║"
+          echo "╠════════════════════════════════════════════════════════════════════╣"
+          echo "║                                                                    ║"
+          echo "║   Job Status:                                                      ║"
+          echo "║     • prepare:        ${{ needs.prepare.result }}                                 "
+          echo "║     • create-release: ${{ needs.create-release.result }}                                 "
+          echo "║                                                                    ║"
+          echo "╚════════════════════════════════════════════════════════════════════╝"
+          exit 1
