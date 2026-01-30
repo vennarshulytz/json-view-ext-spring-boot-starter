@@ -6,7 +6,7 @@ import io.github.vennarshulytz.jsonviewext.model.FilterContext;
 /**
  * FilterContext 的线程本地存储
  *
- * @author zhen
+ * @author vennarshulytz
  * @since 1.0.0
  */
 public class JsonViewExtContextHolder {

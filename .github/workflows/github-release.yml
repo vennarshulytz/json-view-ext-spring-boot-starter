@@ -4,10 +4,10 @@ name: Create GitHub Release
 # 触发条件
 # =============================================================================
 on:
-  # 推送以 'v' 开头的标签时触发
-  push:
-    tags:
-      - 'v*'
+#  # 推送以 'v' 开头的标签时触发
+#  push:
+#    tags:
+#      - 'v*'
 
   # 支持手动触发
   workflow_dispatch:
@@ -19,11 +19,11 @@ on:
       skip_maven_check:
         description: '跳过 Maven Central 可用性检查'
         required: false
-        default: 'false'
+        default: 'true'
         type: choice
         options:
-          - 'false'
           - 'true'
+          - 'false'
 
 # =============================================================================
 # 并发控制

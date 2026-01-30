@@ -88,7 +88,7 @@ implementation 'io.github.vennarshulytz:json-view-ext-spring-boot-starter:1.0.0'
 **Gradle:**
 
 ```groovy
-implementation 'io.github.vennarshulytz:json-view-ext-spring-boot3-starter:2.0.0'
+implementation 'io.github.vennarshulytz:json-view-ext-spring-boot3-starter:1.0.0'
 ```
 
 ### 2. 启用功能

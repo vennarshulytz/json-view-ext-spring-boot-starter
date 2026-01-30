@@ -10,11 +10,11 @@
 
     <name>JSON View Extension Parent</name>
     <description>Parent POM for JSON View Extension Spring Boot Starters</description>
-    <url>https://github.com/vennarshulytz/json-view-ext-spring-boot-starter</url>
+    <url>https://github.com/vennarshulytz/json-view-ext-parent</url>
 
     <modules>
         <module>json-view-ext-core</module>
-<!--        <module>json-view-ext-spring-boot-starter</module>-->
+        <module>json-view-ext-spring-boot-starter</module>
         <module>json-view-ext-spring-boot3-starter</module>
     </modules>
 
@@ -36,14 +36,14 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/vennarshulytz/json-view-ext-spring-boot-starter.git</connection>
-        <developerConnection>scm:git:ssh://github.com/vennarshulytz/json-view-ext-spring-boot-starter.git</developerConnection>
-        <url>https://github.com/vennarshulytz/json-view-ext-spring-boot-starter</url>
+        <connection>scm:git:git://github.com/vennarshulytz/json-view-ext-parent.git</connection>
+        <developerConnection>scm:git:ssh://github.com/vennarshulytz/json-view-ext-parent.git</developerConnection>
+        <url>https://github.com/vennarshulytz/json-view-ext-parent</url>
     </scm>
 
     <issueManagement>
         <system>GitHub Issues</system>
-        <url>https://github.com/vennarshulytz/json-view-ext-spring-boot-starter/issues</url>
+        <url>https://github.com/vennarshulytz/json-view-ext-parent/issues</url>
     </issueManagement>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
