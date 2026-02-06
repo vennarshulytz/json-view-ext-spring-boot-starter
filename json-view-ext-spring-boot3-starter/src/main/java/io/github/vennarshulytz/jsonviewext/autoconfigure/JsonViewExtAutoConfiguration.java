@@ -1,15 +1,21 @@
 package io.github.vennarshulytz.jsonviewext.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.vennarshulytz.jsonviewext.converter.JsonViewExtHttpMessageConverter;
 import io.github.vennarshulytz.jsonviewext.core.FilterRuleRegistry;
 import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
-import io.github.vennarshulytz.jsonviewext.handler.JsonViewExtResponseBodyAdvice;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.List;
 
 
 /**
@@ -34,20 +40,26 @@ public class JsonViewExtAutoConfiguration {
         return new FilterRuleRegistry();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public JsonViewExtModule jsonViewExtModule() {
-        return new JsonViewExtModule();
-    }
+    @Configuration
+    @ConditionalOnWebApplication
+    static class JsonViewExtWebMvcConfiguration implements WebMvcConfigurer {
+        // 可以在此添加额外的 WebMvc 配置
 
-    @Bean
-    @ConditionalOnMissingBean
-    public JsonViewExtResponseBodyAdvice jsonViewExtResponseBodyAdvice(
-            FilterRuleRegistry ruleRegistry,
-            ObjectMapper objectMapper,
-            JsonViewExtModule jsonViewExtModule) {
-        // 注册自定义模块
-        objectMapper.registerModule(jsonViewExtModule);
-        return new JsonViewExtResponseBodyAdvice(ruleRegistry, objectMapper);
+        @Autowired
+        private ObjectMapper objectMapper;
+
+        @Autowired
+        private FilterRuleRegistry ruleRegistry;
+
+        /**
+         * 注册自定义 HttpMessageConverter，优先级最高
+         */
+        @Override
+        public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+            ObjectMapper filterMapper = objectMapper.copy();
+            filterMapper.registerModule(new JsonViewExtModule());
+
+            converters.add(0, new JsonViewExtHttpMessageConverter(filterMapper, ruleRegistry));
+        }
     }
 }

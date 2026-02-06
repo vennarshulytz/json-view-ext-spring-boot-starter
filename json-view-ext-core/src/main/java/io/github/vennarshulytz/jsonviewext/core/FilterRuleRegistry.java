@@ -85,11 +85,11 @@ public class FilterRuleRegistry {
         return new FilterRule(clazz, field, props, isInclude, sensitiveProps);
     }
 
-    /**
-     * 判断方法是否有 @JsonViewExt 注解
-     */
-    public boolean hasJsonViewExtAnnotation(Method method) {
-        return method.isAnnotationPresent(JsonViewExt.class);
-    }
+   // /**
+   //  * 判断方法是否有 @JsonViewExt 注解
+   //  */
+   // public boolean hasJsonViewExtAnnotation(Method method) {
+   //     return method.isAnnotationPresent(JsonViewExt.class);
+   // }
 
 }

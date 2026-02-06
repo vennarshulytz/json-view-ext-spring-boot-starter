@@ -6,7 +6,7 @@
     <parent>
         <groupId>io.github.vennarshulytz</groupId>
         <artifactId>json-view-ext-parent</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.0</version>
     </parent>
 
     <artifactId>json-view-ext-spring-boot-starter</artifactId>
