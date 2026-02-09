@@ -1,9 +1,10 @@
 package io.github.vennarshulytz.jsonviewext.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.vennarshulytz.jsonviewext.converter.JsonViewExtHttpMessageConverter;
+import io.github.vennarshulytz.jsonviewext.converter.JsonViewExtMappingJackson2HttpMessageConverter;
 import io.github.vennarshulytz.jsonviewext.core.FilterRuleRegistry;
 import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
+import io.github.vennarshulytz.jsonviewext.handler.JsonViewExtResponseBodyAdvice;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
 
-
 /**
  * JsonViewExt 自动配置类
  *
@@ -26,6 +26,7 @@ import java.util.List;
  */
 @Configuration
 public class JsonViewExtAutoConfiguration {
+
 
     private static final Logger log = LoggerFactory.getLogger(JsonViewExtAutoConfiguration.class);
 
@@ -40,6 +41,13 @@ public class JsonViewExtAutoConfiguration {
         return new FilterRuleRegistry();
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public JsonViewExtResponseBodyAdvice jsonViewExtResponseBodyAdvice(
+            FilterRuleRegistry ruleRegistry) {
+        return new JsonViewExtResponseBodyAdvice(ruleRegistry);
+    }
+
     @Configuration
     @ConditionalOnWebApplication
     static class JsonViewExtWebMvcConfiguration implements WebMvcConfigurer {
@@ -47,9 +55,6 @@ public class JsonViewExtAutoConfiguration {
 
         @Autowired
         private ObjectMapper objectMapper;
-
-        @Autowired
-        private FilterRuleRegistry ruleRegistry;
 
         /**
          * 注册自定义 HttpMessageConverter，优先级最高
@@ -59,7 +64,9 @@ public class JsonViewExtAutoConfiguration {
             ObjectMapper filterMapper = objectMapper.copy();
             filterMapper.registerModule(new JsonViewExtModule());
 
-            converters.add(0, new JsonViewExtHttpMessageConverter(filterMapper, ruleRegistry));
+            converters.add(0, new JsonViewExtMappingJackson2HttpMessageConverter(objectMapper, filterMapper));
         }
     }
+
+
 }
