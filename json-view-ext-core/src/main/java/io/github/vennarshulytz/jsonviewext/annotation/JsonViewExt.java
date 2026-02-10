@@ -8,9 +8,10 @@ import java.lang.annotation.*;
  * @author vennarshulytz
  * @since 1.0.0
  */
-@Target({ElementType.METHOD})
+@Target({ElementType.METHOD, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
+@Inherited
 public @interface JsonViewExt {
 
     /**

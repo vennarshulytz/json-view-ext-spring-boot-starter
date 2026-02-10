@@ -9,9 +9,11 @@ import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * 过滤规则注册中心，负责解析注解并缓存规则
@@ -23,10 +25,12 @@ public class FilterRuleRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(FilterRuleRegistry.class);
 
+    private static final ConcurrentMap<Method, Optional<JsonViewExt>> jsonViewExtCache = new ConcurrentHashMap<>();
+
     /**
      * 方法级别的规则缓存
      */
-    private final Map<Method, FilterContext> methodRuleCache = new ConcurrentHashMap<>();
+    private static final Map<Method, FilterContext> methodRuleCache = new ConcurrentHashMap<>();
 
     /**
      * 解析并缓存方法的过滤规则
@@ -39,10 +43,11 @@ public class FilterRuleRegistry {
      * 解析 @JsonViewExt 注解
      */
     private FilterContext parseAnnotation(Method method) {
-        JsonViewExt annotation = method.getAnnotation(JsonViewExt.class);
-        if (annotation == null) {
+        Optional<JsonViewExt> jsonViewExtAnnotation = getJsonViewExtAnnotation(method);
+        if (!jsonViewExtAnnotation.isPresent()) {
             return new FilterContext();
         }
+        JsonViewExt annotation = jsonViewExtAnnotation.get();
 
         FilterContext context = new FilterContext();
 
@@ -85,11 +90,47 @@ public class FilterRuleRegistry {
         return new FilterRule(clazz, field, props, isInclude, sensitiveProps);
     }
 
-   /**
-    * 判断方法是否有 @JsonViewExt 注解
-    */
-   public boolean hasJsonViewExtAnnotation(Method method) {
-       return method.isAnnotationPresent(JsonViewExt.class);
-   }
+    /**
+     * 判断方法是否有 @JsonViewExt 注解
+     */
+    public boolean hasJsonViewExtAnnotation(Method method) {
+        return getJsonViewExtAnnotation(method).isPresent();
+    }
+
+    public static Optional<JsonViewExt> getJsonViewExtAnnotation(Method method) {
+        return jsonViewExtCache.computeIfAbsent(method, m -> Optional.ofNullable(findJsonViewExtAnnotation(m)));
+    }
+
+
+    /**
+     * 从方法、类上获取 @JsonViewExt 注解
+     */
+    public static JsonViewExt findJsonViewExtAnnotation(Method method) {
+
+        JsonViewExt jsonViewExt = method.getAnnotation(JsonViewExt.class);
+        if (jsonViewExt != null) {
+            return jsonViewExt;
+        }
+
+        for (Annotation annotation : method.getAnnotations()) {
+            jsonViewExt = annotation.annotationType().getAnnotation(JsonViewExt.class);
+            if (jsonViewExt != null) {
+                return jsonViewExt;
+            }
+        }
+        Class<?> declaringClass = method.getDeclaringClass();
+        jsonViewExt = declaringClass.getAnnotation(JsonViewExt.class);
+        if (jsonViewExt != null) {
+            return jsonViewExt;
+        }
+        for (Annotation annotation : declaringClass.getAnnotations()) {
+            jsonViewExt = annotation.annotationType().getAnnotation(JsonViewExt.class);
+            if (jsonViewExt != null) {
+                return jsonViewExt;
+            }
+        }
+
+        return null;
+    }
 
 }
