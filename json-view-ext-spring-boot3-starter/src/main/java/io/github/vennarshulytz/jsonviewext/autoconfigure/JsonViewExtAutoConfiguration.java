@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
@@ -61,10 +62,17 @@ public class JsonViewExtAutoConfiguration {
          */
         @Override
         public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
-            ObjectMapper filterMapper = objectMapper.copy();
-            filterMapper.registerModule(new JsonViewExtModule());
+            for (int i = 0; i < converters.size(); i++) {
+                HttpMessageConverter<?> converter = converters.get(i);
+                if (converter instanceof MappingJackson2HttpMessageConverter
+                        && !(converter instanceof JsonViewExtMappingJackson2HttpMessageConverter)) {
 
-            converters.add(0, new JsonViewExtMappingJackson2HttpMessageConverter(objectMapper, filterMapper));
+                    ObjectMapper filterMapper = objectMapper.copy();
+                    filterMapper.registerModule(new JsonViewExtModule());
+                    converters.add(i, new JsonViewExtMappingJackson2HttpMessageConverter(objectMapper, filterMapper));
+                    break;
+                }
+            }
         }
     }
 
