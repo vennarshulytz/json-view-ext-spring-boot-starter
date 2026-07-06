@@ -30,11 +30,11 @@ public class JsonViewExtRegistrar implements ImportBeanDefinitionRegistrar {
             return;
         }
 
-        int cacheMaximumSize = attributes.getNumber("cacheMaximumSize");
+        Number cacheMaximumSize = attributes.getNumber("cacheMaximumSize");
         if (!registry.containsBeanDefinition(PROPS_BEAN_NAME)) {
             RootBeanDefinition propsDef = new RootBeanDefinition(JsonViewExtProperties.class);
             propsDef.getConstructorArgumentValues()
-                    .addIndexedArgumentValue(0, cacheMaximumSize);
+                    .addIndexedArgumentValue(0, cacheMaximumSize.longValue());
             registry.registerBeanDefinition(PROPS_BEAN_NAME, propsDef);
         }
 

@@ -45,6 +45,13 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
 
         private static final Logger log = LoggerFactory.getLogger(JsonViewExtBeanSerializer.class);
 
+        private static final ClassValue<Boolean> COMPLEX_TYPE_CACHE = new ClassValue<Boolean>() {
+            @Override
+            protected Boolean computeValue(Class<?> type) {
+                return isComplexTypeValue(type);
+            }
+        };
+
         private final BeanSerializerBase defaultSerializer;
         private final Class<?> beanClass;
 
@@ -93,21 +100,18 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
                 PropertyWriter prop = props.next();
                 String propName = prop.getName();
 
-                // 检查字段是否应该被序列化
-                FilterContext.FieldSerializationResult result = checkFieldSerialization(
-                        context, currentPath, propName, rule);
-
-                if (!result.shouldSerialize()) {
+                if (!shouldSerializeField(rule, propName)) {
                     continue;
                 }
 
                 try {
                     Object propValue = getPropertyValue(value, prop);
+                    Class<? extends SensitiveType> sensitiveType = rule.getSensitiveProps().get(propName);
 
                     // 处理脱敏
-                    if (result.hasSensitiveType() && propValue instanceof String) {
+                    if (sensitiveType != null && propValue instanceof String) {
                         String desensitized = SensitiveHandler.desensitize(
-                                result.getSensitiveType(), (String) propValue);
+                                sensitiveType, (String) propValue);
                         gen.writeStringField(propName, desensitized);
                         continue;
                     }
@@ -145,26 +149,9 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
             gen.writeEndObject();
         }
 
-        private FilterContext.FieldSerializationResult checkFieldSerialization(FilterContext context,
-                                                                               String currentPath,
-                                                                               String propName,
-                                                                               FilterRule rule) {
-            boolean shouldSerialize;
-            Class<? extends SensitiveType> sensitiveType = null;
-
-            if (rule.isInclude()) {
-                shouldSerialize = rule.getProps().contains(propName);
-                if (shouldSerialize) {
-                    sensitiveType = rule.getSensitiveProps().get(propName);
-                }
-            } else {
-                shouldSerialize = !rule.getProps().contains(propName);
-                if (shouldSerialize) {
-                    sensitiveType = rule.getSensitiveProps().get(propName);
-                }
-            }
-
-            return new FilterContext.FieldSerializationResult(shouldSerialize, sensitiveType);
+        private boolean shouldSerializeField(FilterRule rule, String propName) {
+            boolean contains = rule.getProps().contains(propName);
+            return rule.isInclude() ? contains : !contains;
         }
 
         private Object getPropertyValue(Object bean, PropertyWriter prop) throws Exception {
@@ -173,12 +160,6 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
                 return bpw.get(bean);
             }
             return null;
-        }
-
-        private void writeProperty(PropertyWriter prop, String propName, Object propValue,
-                                   JsonGenerator gen, SerializerProvider provider) throws IOException {
-            gen.writeFieldName(propName);
-            provider.defaultSerializeValue(propValue, gen);
         }
 
         private void serializeCollection(String propName, Collection<?> collection,
@@ -245,6 +226,10 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
         }
 
         private boolean isComplexType(Class<?> clazz) {
+            return COMPLEX_TYPE_CACHE.get(clazz);
+        }
+
+        private static boolean isComplexTypeValue(Class<?> clazz) {
             return !clazz.isPrimitive()
                     && !clazz.getName().startsWith("java.lang")
                     && !clazz.getName().startsWith("java.math")
