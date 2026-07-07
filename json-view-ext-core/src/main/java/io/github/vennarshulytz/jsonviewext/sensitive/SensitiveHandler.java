@@ -44,6 +44,15 @@ public class SensitiveHandler {
      * 执行脱敏操作
      */
     public static String desensitize(Class<? extends SensitiveType> handlerClass, String value) {
+        return desensitize(handlerClass, value, true);
+    }
+
+    /**
+     * 执行脱敏操作
+     */
+    public static String desensitize(Class<? extends SensitiveType> handlerClass,
+                                     String value,
+                                     boolean returnOriginalOnError) {
         if (value == null || handlerClass == null) {
             return value;
         }
@@ -51,8 +60,11 @@ public class SensitiveHandler {
             SensitiveType handler = getHandler(handlerClass);
             return handler.desensitize(value);
         } catch (Exception e) {
-            log.warn("Desensitization failed for value, returning original value", e);
-            return value;
+            if (returnOriginalOnError) {
+                log.warn("Desensitization failed for value, returning original value", e);
+                return value;
+            }
+            throw e;
         }
     }
 
@@ -61,7 +73,25 @@ public class SensitiveHandler {
      */
     public static void registerHandler(Class<? extends SensitiveType> handlerClass,
                                        SensitiveType handler) {
+        if (handlerClass == null) {
+            throw new IllegalArgumentException("handlerClass must not be null");
+        }
+        if (handler == null) {
+            throw new IllegalArgumentException("handler must not be null");
+        }
         HANDLER_CACHE.put(handlerClass, handler);
+    }
+
+    /**
+     * 批量注册自定义脱敏处理器
+     */
+    public static void registerHandlers(Map<Class<? extends SensitiveType>, SensitiveType> handlers) {
+        if (handlers == null || handlers.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<Class<? extends SensitiveType>, SensitiveType> entry : handlers.entrySet()) {
+            registerHandler(entry.getKey(), entry.getValue());
+        }
     }
 
     /**

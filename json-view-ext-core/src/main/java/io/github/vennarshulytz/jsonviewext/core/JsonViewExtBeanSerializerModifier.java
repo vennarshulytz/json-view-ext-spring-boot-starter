@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -111,7 +112,9 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
                     // 处理脱敏
                     if (sensitiveType != null && propValue instanceof String) {
                         String desensitized = SensitiveHandler.desensitize(
-                                sensitiveType, (String) propValue);
+                                sensitiveType,
+                                (String) propValue,
+                                context.getProperties().isReturnOriginalOnDesensitizationError());
                         gen.writeStringField(propName, desensitized);
                         continue;
                     }
@@ -122,9 +125,15 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
 
                         if (propValue instanceof Collection) {
                             serializeCollection(propName, (Collection<?>) propValue,
-                                    gen, provider, newPath);
+                                    gen, provider, newPath, context);
+                        } else if (propValue instanceof Map) {
+                            serializeMap(propName, (Map<?, ?>) propValue,
+                                    gen, provider, newPath, context);
+                        } else if (propValue instanceof Optional) {
+                            serializeOptional(propName, (Optional<?>) propValue,
+                                    gen, provider, newPath, context);
                         } else if (propValue.getClass().isArray()) {
-                            serializeArray(propName, propValue, gen, provider, newPath);
+                            serializeArray(propName, propValue, gen, provider, newPath, context);
                         } else if (isComplexType(propValue.getClass())) {
                             serializeNestedObject(propName, propValue, gen, provider, newPath);
                         } else {
@@ -135,6 +144,9 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
                         prop.serializeAsField(value, gen, provider);
                     }
                 } catch (Exception e) {
+                    if (context.getProperties().isFailFast()) {
+                        throw e instanceof IOException ? (IOException) e : new IOException(e);
+                    }
                     log.warn("Error serializing property: {}", propName, e);
                     // 尝试使用默认方式写入
                     try {
@@ -164,53 +176,112 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
 
         private void serializeCollection(String propName, Collection<?> collection,
                                          JsonGenerator gen, SerializerProvider provider,
-                                         String basePath) throws IOException {
+                                         String basePath,
+                                         FilterContext context) throws IOException {
             gen.writeFieldName(propName);
             gen.writeStartArray();
 
             for (Object item : collection) {
-                if (item == null) {
-                    gen.writeNull();
-                } else if (isComplexType(item.getClass())) {
-                    // 对于集合元素，路径使用集合属性名
-                    PathTracker.pushPath(basePath);
-                    try {
-                        provider.defaultSerializeValue(item, gen);
-                    } finally {
-                        PathTracker.popPath();
-                    }
-                } else {
-                    provider.defaultSerializeValue(item, gen);
-                }
+                serializeContainerValue(item, gen, provider, basePath + ".*", context);
             }
 
             gen.writeEndArray();
         }
 
+        private void serializeMap(String propName, Map<?, ?> map,
+                                  JsonGenerator gen, SerializerProvider provider,
+                                  String basePath,
+                                  FilterContext context) throws IOException {
+            gen.writeFieldName(propName);
+            gen.writeStartObject();
+
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                Object key = entry.getKey();
+                String fieldName = key == null ? "null" : String.valueOf(key);
+                gen.writeFieldName(fieldName);
+                serializeContainerValue(entry.getValue(), gen, provider,
+                        basePath + "." + fieldName, context);
+            }
+
+            gen.writeEndObject();
+        }
+
+        private void serializeOptional(String propName, Optional<?> optional,
+                                       JsonGenerator gen, SerializerProvider provider,
+                                       String basePath,
+                                       FilterContext context) throws IOException {
+            gen.writeFieldName(propName);
+            if (optional.isPresent()) {
+                serializeContainerValue(optional.get(), gen, provider, basePath, context);
+            } else {
+                gen.writeNull();
+            }
+        }
+
         private void serializeArray(String propName, Object array,
                                     JsonGenerator gen, SerializerProvider provider,
-                                    String basePath) throws IOException {
+                                    String basePath,
+                                    FilterContext context) throws IOException {
             gen.writeFieldName(propName);
             gen.writeStartArray();
 
-            int length = java.lang.reflect.Array.getLength(array);
+            int length = Array.getLength(array);
             for (int i = 0; i < length; i++) {
-                Object item = java.lang.reflect.Array.get(array, i);
-                if (item == null) {
-                    gen.writeNull();
-                } else if (isComplexType(item.getClass())) {
-                    PathTracker.pushPath(basePath);
-                    try {
-                        provider.defaultSerializeValue(item, gen);
-                    } finally {
-                        PathTracker.popPath();
-                    }
-                } else {
-                    provider.defaultSerializeValue(item, gen);
-                }
+                Object item = Array.get(array, i);
+                serializeContainerValue(item, gen, provider, basePath + ".*", context);
             }
 
             gen.writeEndArray();
+        }
+
+        private void serializeContainerValue(Object value,
+                                             JsonGenerator gen,
+                                             SerializerProvider provider,
+                                             String valuePath,
+                                             FilterContext context) throws IOException {
+            if (value == null) {
+                gen.writeNull();
+            } else if (value instanceof Collection) {
+                gen.writeStartArray();
+                for (Object item : (Collection<?>) value) {
+                    serializeContainerValue(item, gen, provider, valuePath + ".*", context);
+                }
+                gen.writeEndArray();
+            } else if (value instanceof Map) {
+                gen.writeStartObject();
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                    Object key = entry.getKey();
+                    String fieldName = key == null ? "null" : String.valueOf(key);
+                    gen.writeFieldName(fieldName);
+                    serializeContainerValue(entry.getValue(), gen, provider,
+                            valuePath + "." + fieldName, context);
+                }
+                gen.writeEndObject();
+            } else if (value instanceof Optional) {
+                Optional<?> optional = (Optional<?>) value;
+                if (optional.isPresent()) {
+                    serializeContainerValue(optional.get(), gen, provider, valuePath, context);
+                } else {
+                    gen.writeNull();
+                }
+            } else if (value.getClass().isArray()) {
+                gen.writeStartArray();
+                int length = Array.getLength(value);
+                for (int i = 0; i < length; i++) {
+                    serializeContainerValue(Array.get(value, i), gen, provider,
+                            valuePath + ".*", context);
+                }
+                gen.writeEndArray();
+            } else if (isComplexType(value.getClass())) {
+                PathTracker.pushPath(valuePath);
+                try {
+                    provider.defaultSerializeValue(value, gen);
+                } finally {
+                    PathTracker.popPath();
+                }
+            } else {
+                provider.defaultSerializeValue(value, gen);
+            }
         }
 
         private void serializeNestedObject(String propName, Object value,
@@ -237,6 +308,8 @@ public class JsonViewExtBeanSerializerModifier extends BeanSerializerModifier {
                     && !clazz.isEnum()
                     && !Number.class.isAssignableFrom(clazz)
                     && !CharSequence.class.isAssignableFrom(clazz)
+                    && !Boolean.class.isAssignableFrom(clazz)
+                    && !Character.class.isAssignableFrom(clazz)
                     && !Date.class.isAssignableFrom(clazz);
         }
     }

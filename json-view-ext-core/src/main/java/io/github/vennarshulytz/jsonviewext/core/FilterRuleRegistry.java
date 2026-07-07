@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.vennarshulytz.jsonviewext.annotation.JsonFilterExt;
 import io.github.vennarshulytz.jsonviewext.annotation.JsonViewExt;
 import io.github.vennarshulytz.jsonviewext.annotation.Sensitive;
+import io.github.vennarshulytz.jsonviewext.config.JsonViewExtProperties;
 import io.github.vennarshulytz.jsonviewext.model.FilterContext;
 import io.github.vennarshulytz.jsonviewext.model.FilterRule;
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
@@ -35,10 +36,19 @@ public class FilterRuleRegistry {
      * 方法级别的规则缓存
      */
     private final Cache<Method, FilterContext> methodRuleCache;
+    private final JsonViewExtProperties properties;
 
     public FilterRuleRegistry(long cacheMaximumSize) {
-        this.jsonViewExtCache = createCache(cacheMaximumSize);
-        this.methodRuleCache = createCache(cacheMaximumSize);
+        this(new JsonViewExtProperties(cacheMaximumSize));
+    }
+
+    public FilterRuleRegistry(JsonViewExtProperties properties) {
+        if (properties == null) {
+            throw new IllegalArgumentException("properties must not be null");
+        }
+        this.properties = properties;
+        this.jsonViewExtCache = createCache(properties.getCacheMaximumSize());
+        this.methodRuleCache = createCache(properties.getCacheMaximumSize());
     }
 
     /**
@@ -57,7 +67,7 @@ public class FilterRuleRegistry {
             return FilterContext.EMPTY;
         }
 
-        FilterContext context = new FilterContext();
+        FilterContext context = new FilterContext(properties);
 
         List<JsonViewExt> resolve = JsonViewExtUtils.resolve(annotation);
         int size = resolve.size();

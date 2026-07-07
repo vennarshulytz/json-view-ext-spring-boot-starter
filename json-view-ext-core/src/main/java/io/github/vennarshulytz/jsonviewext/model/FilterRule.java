@@ -1,6 +1,6 @@
 package io.github.vennarshulytz.jsonviewext.model;
 
-import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType ;
+import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 
 import java.util.*;
 
@@ -17,6 +17,7 @@ public class FilterRule {
     private final Set<String> props;
     private final boolean isInclude;
     private final Map<String, Class<? extends SensitiveType>> sensitiveProps;
+    private final boolean wildcardPath;
 
     public FilterRule(Class<?> targetClass, String fieldPath, Set<String> props,
                       boolean isInclude, Map<String, Class<? extends SensitiveType>> sensitiveProps) {
@@ -26,6 +27,7 @@ public class FilterRule {
         this.isInclude = isInclude;
         this.sensitiveProps = sensitiveProps != null ?
                 Collections.unmodifiableMap(new HashMap<>(sensitiveProps)) : Collections.emptyMap();
+        this.wildcardPath = this.fieldPath.indexOf('*') >= 0;
     }
 
     public Class<?> getTargetClass() {
@@ -50,6 +52,10 @@ public class FilterRule {
 
     public boolean hasFieldPath() {
         return fieldPath != null && !fieldPath.isEmpty();
+    }
+
+    public boolean hasWildcardPath() {
+        return wildcardPath;
     }
 
     /**

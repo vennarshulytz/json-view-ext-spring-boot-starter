@@ -4,13 +4,17 @@ import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
 import io.github.vennarshulytz.jsonviewext.model.FilterContext;
 import io.github.vennarshulytz.jsonviewext.model.FilterRule;
 import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
+import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.EmailType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.IdCardType;
 import io.github.vennarshulytz.jsonviewext.sensitive.impl.PhoneType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -147,6 +151,21 @@ public class JsonViewExtTests {
     }
 
     @Test
+    public void testFilterContextWithWildcardPath() {
+        FilterContext context = new FilterContext();
+
+        FilterRule wildcardRule = new FilterRule(
+                TestEntity.class, "items.*.detail",
+                Set.of("name"), true, Map.of());
+
+        context.addIncludeRule(wildcardRule);
+
+        FilterRule found = context.getApplicableRule(TestEntity.class, "items.0.detail");
+        assertNotNull(found);
+        assertEquals(Set.of("name"), found.getProps());
+    }
+
+    @Test
     public void testSerializationWithFilter() throws Exception {
         TestEntity entity = new TestEntity();
         entity.setId("123");
@@ -171,11 +190,133 @@ public class JsonViewExtTests {
         }
     }
 
+    @Test
+    public void testSerializationWithWildcardCollectionFilter() throws Exception {
+        Holder holder = new Holder();
+        holder.setItems(Arrays.asList(
+                new NestedEntity(new TestEntity("1", "A", "SecretA")),
+                new NestedEntity(new TestEntity("2", "B", "SecretB"))));
+
+        FilterContext context = new FilterContext();
+        context.addIncludeRule(new FilterRule(
+                Holder.class, "", Set.of("items"), true, Map.of()));
+        context.addIncludeRule(new FilterRule(
+                NestedEntity.class, "items.*", Set.of("entity"), true, Map.of()));
+        context.addIncludeRule(new FilterRule(
+                TestEntity.class, "items.*.entity", Set.of("id", "name"), true, Map.of()));
+
+        try {
+            JsonViewExtContextHolder.setContext(context);
+            String json = objectMapper.writeValueAsString(holder);
+
+            assertTrue(json.contains("items"));
+            assertTrue(json.contains("A"));
+            assertTrue(json.contains("B"));
+            assertFalse(json.contains("SecretA"));
+            assertFalse(json.contains("SecretB"));
+        } finally {
+            JsonViewExtContextHolder.clear();
+        }
+    }
+
+    @Test
+    public void testSerializationWithMapAndOptionalFilter() throws Exception {
+        Holder holder = new Holder();
+        holder.setMap(Map.of("primary", new TestEntity("1", "A", "Secret")));
+        holder.setOptional(Optional.of(new TestEntity("2", "B", "Hidden")));
+
+        FilterContext context = new FilterContext();
+        context.addIncludeRule(new FilterRule(
+                Holder.class, "", Set.of("map", "optional"), true, Map.of()));
+        context.addIncludeRule(new FilterRule(
+                TestEntity.class, "map.primary", Set.of("name"), true, Map.of()));
+        context.addIncludeRule(new FilterRule(
+                TestEntity.class, "optional", Set.of("id"), true, Map.of()));
+
+        try {
+            JsonViewExtContextHolder.setContext(context);
+            String json = objectMapper.writeValueAsString(holder);
+
+            assertTrue(json.contains("primary"));
+            assertTrue(json.contains("A"));
+            assertTrue(json.contains("2"));
+            assertFalse(json.contains("Secret"));
+            assertFalse(json.contains("Hidden"));
+            assertFalse(json.contains("\"id\":\"1\""));
+            assertFalse(json.contains("\"name\":\"B\""));
+        } finally {
+            JsonViewExtContextHolder.clear();
+        }
+    }
+
+    @Test
+    public void testSerializationWithPageLikeContentFilter() throws Exception {
+        PageLike page = new PageLike(Arrays.asList(
+                new TestEntity("1", "A", "SecretA"),
+                new TestEntity("2", "B", "SecretB")),
+                2);
+
+        FilterContext context = new FilterContext();
+        context.addIncludeRule(new FilterRule(
+                PageLike.class, "", Set.of("content", "total"), true, Map.of()));
+        context.addIncludeRule(new FilterRule(
+                TestEntity.class, "content.*", Set.of("name"), true, Map.of()));
+
+        try {
+            JsonViewExtContextHolder.setContext(context);
+            String json = objectMapper.writeValueAsString(page);
+
+            assertTrue(json.contains("content"));
+            assertTrue(json.contains("total"));
+            assertTrue(json.contains("A"));
+            assertTrue(json.contains("B"));
+            assertFalse(json.contains("SecretA"));
+            assertFalse(json.contains("SecretB"));
+        } finally {
+            JsonViewExtContextHolder.clear();
+        }
+    }
+
+    @Test
+    public void testSensitiveHandlerWithRegisteredCustomBean() {
+        SensitiveHandler.registerHandler(CustomSensitiveType.class, new CustomSensitiveType("bean"));
+
+        String result = SensitiveHandler.desensitize(CustomSensitiveType.class, "value");
+
+        assertEquals("bean:value", result);
+    }
+
+    public static class CustomSensitiveType implements SensitiveType {
+        private final String prefix;
+
+        public CustomSensitiveType() {
+            this("default");
+        }
+
+        public CustomSensitiveType(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public String desensitize(String value) {
+            return prefix + ":" + value;
+        }
+    }
+
     // 测试实体类
     public static class TestEntity {
         private String id;
         private String name;
         private String value;
+
+        public TestEntity() {
+        }
+
+        public TestEntity(String id, String name, String value) {
+            this.id = id;
+            this.name = name;
+            this.value = value;
+        }
 
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
@@ -185,5 +326,53 @@ public class JsonViewExtTests {
 
         public String getValue() { return value; }
         public void setValue(String value) { this.value = value; }
+    }
+
+    public static class NestedEntity {
+        private TestEntity entity;
+
+        public NestedEntity() {
+        }
+
+        public NestedEntity(TestEntity entity) {
+            this.entity = entity;
+        }
+
+        public TestEntity getEntity() { return entity; }
+        public void setEntity(TestEntity entity) { this.entity = entity; }
+    }
+
+    public static class Holder {
+        private List<NestedEntity> items;
+        private Map<String, TestEntity> map;
+        private Optional<TestEntity> optional;
+
+        public List<NestedEntity> getItems() { return items; }
+        public void setItems(List<NestedEntity> items) { this.items = items; }
+
+        public Map<String, TestEntity> getMap() { return map; }
+        public void setMap(Map<String, TestEntity> map) { this.map = map; }
+
+        public Optional<TestEntity> getOptional() { return optional; }
+        public void setOptional(Optional<TestEntity> optional) { this.optional = optional; }
+    }
+
+    public static class PageLike {
+        private List<TestEntity> content;
+        private long total;
+
+        public PageLike() {
+        }
+
+        public PageLike(List<TestEntity> content, long total) {
+            this.content = content;
+            this.total = total;
+        }
+
+        public List<TestEntity> getContent() { return content; }
+        public void setContent(List<TestEntity> content) { this.content = content; }
+
+        public long getTotal() { return total; }
+        public void setTotal(long total) { this.total = total; }
     }
 }
