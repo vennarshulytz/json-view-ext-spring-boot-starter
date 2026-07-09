@@ -6,8 +6,6 @@ import io.github.vennarshulytz.jsonviewext.converter.JsonViewExtMappingJackson2H
 import io.github.vennarshulytz.jsonviewext.core.FilterRuleRegistry;
 import io.github.vennarshulytz.jsonviewext.core.JsonViewExtModule;
 import io.github.vennarshulytz.jsonviewext.handler.JsonViewExtResponseBodyAdvice;
-import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveHandler;
-import io.github.vennarshulytz.jsonviewext.sensitive.SensitiveType;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +20,6 @@ import org.springframework.lang.Nullable;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * JsonViewExt 自动配置类
@@ -39,17 +36,6 @@ public class JsonViewExtAutoConfiguration {
     @PostConstruct
     public void init() {
         log.info("JsonViewExt Spring Boot Starter initialized");
-    }
-
-    @Autowired(required = false)
-    public void registerSensitiveHandlers(Map<String, SensitiveType> sensitiveHandlers) {
-        if (sensitiveHandlers == null || sensitiveHandlers.isEmpty()) {
-            return;
-        }
-        for (SensitiveType sensitiveHandler : sensitiveHandlers.values()) {
-            SensitiveHandler.registerHandler(sensitiveHandler.getClass(), sensitiveHandler);
-        }
-        log.debug("Registered {} JsonViewExt SensitiveType bean(s)", sensitiveHandlers.size());
     }
 
     @Bean
