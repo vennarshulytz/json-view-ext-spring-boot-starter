@@ -15,6 +15,7 @@
     <modules>
         <module>json-view-ext-core</module>
         <module>json-view-ext-spring-boot-starter</module>
+        <module>json-view-ext-spring-boot3-starter</module>
     </modules>
 
     <!-- ========== License ========== -->
@@ -54,7 +55,7 @@
         <maven-javadoc-plugin.version>3.6.0</maven-javadoc-plugin.version>
         <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
         <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
-        <central-publishing-plugin.version>0.4.0</central-publishing-plugin.version>
+        <central-publishing-plugin.version>0.10.0</central-publishing-plugin.version>
     </properties>
 
     <dependencyManagement>
